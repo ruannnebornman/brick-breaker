@@ -1,5 +1,16 @@
 export class Ball {
-  constructor({ x, y, radius, speed, damage, critChance, critDamage, element = "normal" }) {
+  constructor({
+    x,
+    y,
+    radius,
+    speed,
+    damage,
+    critChance,
+    critDamage,
+    element = "normal",
+    elements = null,
+    pierceChance = 0,
+  }) {
     this.id = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
     this.kind = "ball";
     this.x = x;
@@ -12,6 +23,8 @@ export class Ball {
     this.critChance = critChance;
     this.critDamage = critDamage;
     this.element = element;
+    this.elements = normalizeElements(elements, element);
+    this.pierceChance = pierceChance;
     this.stuckToPaddle = true;
     this.active = true;
     this.age = 0;
@@ -32,4 +45,9 @@ export class Ball {
     this.vy = Math.sin(angle) * this.speed;
     this.stuckToPaddle = false;
   }
+}
+
+function normalizeElements(elements, fallback) {
+  const list = Array.isArray(elements) && elements.length > 0 ? elements : [fallback];
+  return [...new Set(list.filter(Boolean))];
 }

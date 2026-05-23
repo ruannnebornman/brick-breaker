@@ -17,4 +17,13 @@ export const BRICK_TYPES = {
     assetHealthy: "brick_armored_healthy",
     assetDamaged: "brick_armored_damaged",
   },
+  boss_summon: {
+    id: "boss_summon",
+    name: "Boss Summon",
+    baseHp: 18,
+    armor: 1,
+    requiredForClear: false,
+    assetHealthy: "brick_basic_healthy",
+    assetDamaged: "brick_basic_damaged",
+  },
 };

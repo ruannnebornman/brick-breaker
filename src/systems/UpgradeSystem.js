@@ -15,7 +15,20 @@ export class UpgradeSystem {
   }
 
   applyToStats(baseStats, runUpgrades = []) {
-    const stats = { ...baseStats, ballCount: 1, burnPower: 0, shieldSaves: 0 };
+    const stats = {
+      ...baseStats,
+      ballCount: 2,
+      burnPower: 0,
+      lightningPower: 0,
+      frostPower: 0,
+      acidPower: 0,
+      shieldSaves: 0,
+      cannonEnabled: false,
+      cannonProjectileCount: 0,
+      cannonCooldown: baseStats.cannonCooldown,
+      cannonDamageMultiplier: baseStats.cannonDamageMultiplier,
+      activeElements: [],
+    };
     for (const id of runUpgrades) {
       const upgrade = this.byId.get(id);
       if (!upgrade) continue;
@@ -26,22 +39,53 @@ export class UpgradeSystem {
       stats.critChance += mods.critChanceAdd || 0;
       stats.ballCount += mods.ballCountAdd || 0;
       stats.burnPower += mods.burnPowerAdd || 0;
+      stats.lightningPower += mods.lightningPowerAdd || 0;
+      stats.frostPower += mods.frostPowerAdd || 0;
+      stats.acidPower += mods.acidPowerAdd || 0;
       stats.shieldSaves += mods.shieldSavesAdd || 0;
+      stats.elementChance += mods.elementChanceAdd || 0;
+      stats.statusDuration += mods.statusDurationAdd || 0;
+      stats.pierceChance += mods.pierceChanceAdd || 0;
+      stats.maxSecondaryHitEvents += mods.secondaryHitBudgetAdd || 0;
+      stats.cannonCooldown += mods.cannonCooldownAdd || 0;
+      stats.cannonDamageMultiplier += mods.cannonDamageMultiplierAdd || 0;
+      stats.cannonProjectileCount += mods.cannonProjectileCountAdd || 0;
+      if (mods.cannonEnabled) {
+        stats.cannonEnabled = true;
+      }
       if (mods.element) {
         stats.element = mods.element;
+        if (!stats.activeElements.includes(mods.element)) {
+          stats.activeElements.push(mods.element);
+        }
       }
+    }
+
+    if (stats.activeElements.length === 0) {
+      stats.activeElements = [stats.element];
     }
 
     stats.ballSpeed = Math.min(stats.ballSpeed, stats.ballMaxSpeed);
     stats.paddleWidth = Math.min(stats.paddleWidth, 260);
     stats.critChance = Math.min(stats.critChance, 0.75);
     stats.ballCount = Math.min(stats.ballCount, 4);
+    stats.elementChance = Math.min(stats.elementChance, 0.85);
+    stats.statusDuration = Math.min(stats.statusDuration, 2.4);
+    stats.pierceChance = Math.min(stats.pierceChance, 0.7);
+    stats.maxSecondaryHitEvents = Math.min(stats.maxSecondaryHitEvents, 18);
+    stats.cannonCooldown = Math.max(0.45, stats.cannonCooldown);
+    stats.cannonDamageMultiplier = Math.min(stats.cannonDamageMultiplier, 1.1);
+    stats.cannonProjectileCount = Math.min(stats.cannonProjectileCount, 3);
     return stats;
   }
 
   offerChoices({ seed, levelNumber, runUpgrades }) {
     const stacks = this.countStacks(runUpgrades);
-    const available = this.upgrades.filter((upgrade) => (stacks[upgrade.id] || 0) < upgrade.maxStacks);
+    const selectedIds = new Set(runUpgrades);
+    const available = this.upgrades.filter((upgrade) =>
+      (stacks[upgrade.id] || 0) < upgrade.maxStacks &&
+      (upgrade.prerequisites || []).every((id) => selectedIds.has(id))
+    );
     const rng = new Random((seed + levelNumber * 1009 + runUpgrades.length * 9176) >>> 0);
     const choices = [];
     const broadlyUseful = available.filter((upgrade) =>

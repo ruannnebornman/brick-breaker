@@ -22,14 +22,20 @@ export class Debug {
       `mode ${game.mode}`,
       `level ${game.activeRun?.currentLevel ?? "-"}`,
       `seed ${game.activeRun?.seed ?? "-"}`,
+      `layout ${game.level?.definition?.layoutPattern ?? "-"}`,
+      `element ${getElementDebugLabel(game.stats)}`,
+      `events ${game.hitEventBudget?.secondary ?? 0}/${game.hitEventBudget?.maxSecondary ?? 0}`,
       `balls ${game.level?.balls.filter((ball) => ball.active).length ?? 0}`,
       `bricks ${game.level?.bricks.filter((brick) => brick.active).length ?? 0}`,
+      `enemies ${game.level?.enemies?.filter((enemy) => enemy.active).length ?? 0}`,
+      `hazards ${game.level?.hazards?.filter((hazard) => hazard.active).length ?? 0}`,
+      `projectiles ${game.level?.projectiles?.filter((projectile) => projectile.active).length ?? 0}`,
       `boss ${game.level?.boss?.active ? Math.ceil(game.level.boss.hp) : "-"}`,
     ];
     ctx.save();
     ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
     ctx.textBaseline = "top";
-    const width = 190;
+    const width = 220;
     const height = lines.length * 17 + 12;
     ctx.fillStyle = "rgba(4, 12, 11, 0.78)";
     ctx.strokeStyle = "rgba(97, 215, 198, 0.45)";
@@ -61,6 +67,16 @@ export class Debug {
       ctx.strokeStyle = "rgba(255, 126, 97, 0.85)";
       ctx.strokeRect(boss.x, boss.y, boss.width, boss.height);
     }
+    ctx.strokeStyle = "rgba(192, 255, 142, 0.78)";
+    for (const enemy of game.level.enemies || []) {
+      if (!enemy.active) continue;
+      ctx.strokeRect(enemy.x, enemy.y, enemy.width, enemy.height);
+    }
+    ctx.strokeStyle = "rgba(255, 126, 97, 0.58)";
+    for (const hazard of game.level.hazards || []) {
+      if (!hazard.active) continue;
+      ctx.strokeRect(hazard.x, hazard.y, hazard.width, hazard.height);
+    }
     ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
     for (const ball of game.level.balls) {
       if (!ball.active) continue;
@@ -68,6 +84,20 @@ export class Debug {
       ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
       ctx.stroke();
     }
+    ctx.strokeStyle = "rgba(255, 126, 97, 0.85)";
+    for (const projectile of game.level.projectiles || []) {
+      if (!projectile.active) continue;
+      ctx.beginPath();
+      ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
+}
+
+function getElementDebugLabel(stats) {
+  const activeElements = Array.isArray(stats?.activeElements) && stats.activeElements.length > 0
+    ? stats.activeElements
+    : [stats?.element || "-"];
+  return [...new Set(activeElements)].join("+");
 }

@@ -1,3 +1,6 @@
+import { BIOMES } from "../data/biomes.js";
+import { getBallElement } from "../data/ballElements.js";
+
 const LOGICAL_WIDTH = 960;
 const LOGICAL_HEIGHT = 600;
 
@@ -36,21 +39,25 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawBackground(ctx) {
-    const bg = this.assets.get("bg_grasslands_training_ruins_arena");
+  drawBackground(ctx, game) {
+    const definition = game.level?.definition;
+    const biome = BIOMES[definition?.biomeId] || BIOMES.grasslands_training_ruins;
+    const variant = biome.backgroundVariants?.[definition?.visualVariant] || biome.backgroundVariants?.default;
+    const bg = this.assets.get(biome.backgroundAsset);
     if (bg) {
       ctx.drawImage(bg, 0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
       return;
     }
 
     const gradient = ctx.createLinearGradient(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
-    gradient.addColorStop(0, "#10231d");
-    gradient.addColorStop(0.45, "#283f28");
-    gradient.addColorStop(1, "#143a38");
+    const colors = variant?.colors || ["#10231d", "#283f28", "#143a38"];
+    gradient.addColorStop(0, colors[0]);
+    gradient.addColorStop(0.45, colors[1]);
+    gradient.addColorStop(1, colors[2]);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 
-    ctx.strokeStyle = "rgba(218, 232, 184, 0.08)";
+    ctx.strokeStyle = variant?.grid || "rgba(218, 232, 184, 0.08)";
     ctx.lineWidth = 1;
     for (let x = 0; x <= LOGICAL_WIDTH; x += 48) {
       ctx.beginPath();
@@ -97,15 +104,24 @@ export class Renderer {
 
   drawLevel(ctx, game) {
     const { level } = game;
+    this.drawHazards(ctx, level.hazards);
+
     for (const brick of level.bricks) {
       if (!brick.active) continue;
       this.drawBrick(ctx, brick);
+    }
+
+    for (const enemy of level.enemies) {
+      if (!enemy.active) continue;
+      this.drawEnemy(ctx, enemy);
     }
 
     if (level.boss?.active) {
       this.drawBoss(ctx, level.boss);
     }
 
+    this.drawProjectiles(ctx, level.projectiles);
+    this.drawParticles(ctx, level.particles, "beam");
     this.drawParticles(ctx, level.particles, "trail");
 
     for (const ball of level.balls) {
@@ -134,7 +150,7 @@ export class Renderer {
   }
 
   drawBall(ctx, ball) {
-    const image = this.assets.get(ball.element === "fire" ? "ball_fire" : "ball_normal");
+    const image = this.assets.get(`ball_${ball.element}`);
     if (image) {
       ctx.drawImage(
         image,
@@ -155,7 +171,15 @@ export class Renderer {
       ctx.drawImage(image, brick.x, brick.y, brick.width, brick.height);
       return;
     }
-    this.drawPlaceholderBrick(ctx, brick.x, brick.y, brick.width, brick.height, brick.type, brick.hpRatio);
+    this.drawPlaceholderBrick(
+      ctx,
+      brick.x,
+      brick.y,
+      brick.width,
+      brick.height,
+      { type: brick.type, ...(brick.palette || {}) },
+      brick.hpRatio,
+    );
   }
 
   drawBoss(ctx, boss) {
@@ -167,22 +191,25 @@ export class Renderer {
     }
 
     ctx.save();
+    const palette = boss.palette || {};
     const gradient = ctx.createLinearGradient(boss.x, boss.y, boss.x, boss.y + boss.height);
-    gradient.addColorStop(0, boss.hpRatio < 0.45 ? "#526158" : "#697b60");
+    gradient.addColorStop(0, boss.hpRatio < 0.45 ? palette.damagedFill || "#526158" : palette.fill || "#697b60");
     gradient.addColorStop(1, "#26352e");
     ctx.fillStyle = gradient;
-    ctx.strokeStyle = "#e6c15b";
+    ctx.strokeStyle = palette.accent || "#e6c15b";
     ctx.lineWidth = 4;
     roundedRect(ctx, boss.x, boss.y, boss.width, boss.height, 8);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(97, 215, 198, 0.85)";
-    ctx.shadowColor = "#61d7c6";
+    ctx.fillStyle = palette.core || "rgba(97, 215, 198, 0.85)";
+    ctx.shadowColor = palette.core || "#61d7c6";
     ctx.shadowBlur = 18;
     roundedRect(ctx, boss.x + boss.width * 0.35, boss.y + boss.height * 0.24, boss.width * 0.3, boss.height * 0.42, 8);
     ctx.fill();
     ctx.shadowBlur = 0;
+
+    this.drawBossMotif(ctx, boss, palette);
 
     if (boss.hpRatio < 0.65) {
       ctx.strokeStyle = "rgba(20, 16, 12, 0.75)";
@@ -195,7 +222,234 @@ export class Renderer {
       ctx.lineTo(boss.x + boss.width * 0.6, boss.y + boss.height * 0.84);
       ctx.stroke();
     }
+
+    if (boss.phase >= 2) {
+      ctx.fillStyle = palette.armor || "#7f8f73";
+      ctx.strokeStyle = "rgba(20, 16, 12, 0.65)";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 4; i += 1) {
+        const plateX = boss.x + boss.width * (0.16 + i * 0.18);
+        roundedRect(ctx, plateX, boss.y + boss.height * 0.08, boss.width * 0.12, boss.height * 0.25, 6);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
     ctx.restore();
+  }
+
+  drawBossMotif(ctx, boss, palette) {
+    const motif = boss.visual?.motif || "golem";
+    const x = boss.x;
+    const y = boss.y;
+    const w = boss.width;
+    const h = boss.height;
+    const accent = palette.accent || "#e6c15b";
+    const core = palette.core || "#61d7c6";
+    const armor = palette.armor || "#7f8f73";
+
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = accent;
+    ctx.fillStyle = armor;
+
+    if (motif === "golem") {
+      for (let i = 1; i < 4; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x + w * (i / 4), y + h * 0.12);
+        ctx.lineTo(x + w * (i / 4), y + h * 0.86);
+        ctx.stroke();
+      }
+    } else if (motif === "wyrm") {
+      for (let i = 0; i < 6; i += 1) {
+        ctx.beginPath();
+        ctx.ellipse(x + w * (0.18 + i * 0.11), y + h * (0.28 + Math.sin(i) * 0.05), w * 0.07, h * 0.12, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      drawEye(ctx, x + w * 0.78, y + h * 0.34, core);
+    } else if (motif === "crown") {
+      for (let i = 0; i < 5; i += 1) {
+        const px = x + w * (0.24 + i * 0.13);
+        ctx.beginPath();
+        ctx.moveTo(px - w * 0.05, y + h * 0.24);
+        ctx.lineTo(px, y + h * 0.06);
+        ctx.lineTo(px + w * 0.05, y + h * 0.24);
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else if (motif === "ooze") {
+      for (let i = 0; i < 5; i += 1) {
+        const px = x + w * (0.2 + i * 0.15);
+        ctx.beginPath();
+        ctx.arc(px, y + h * 0.76, h * (0.08 + (i % 2) * 0.03), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else if (motif === "storm") {
+      ctx.beginPath();
+      for (let i = 0; i < 4; i += 1) {
+        const px = x + w * (0.22 + i * 0.17);
+        ctx.moveTo(px, y + h * 0.12);
+        ctx.lineTo(px + w * 0.04, y + h * 0.34);
+        ctx.lineTo(px - w * 0.01, y + h * 0.34);
+        ctx.lineTo(px + w * 0.05, y + h * 0.62);
+      }
+      ctx.stroke();
+    } else if (motif === "hydra") {
+      for (let i = 0; i < 3; i += 1) {
+        const px = x + w * (0.3 + i * 0.2);
+        ctx.beginPath();
+        ctx.moveTo(x + w * 0.5, y + h * 0.56);
+        ctx.quadraticCurveTo(px, y + h * 0.32, px, y + h * 0.16);
+        ctx.stroke();
+        drawEye(ctx, px, y + h * 0.18, core);
+      }
+    } else if (motif === "furnace") {
+      roundedRect(ctx, x + w * 0.32, y + h * 0.42, w * 0.36, h * 0.32, 10);
+      ctx.stroke();
+      for (let i = 0; i < 4; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x + w * (0.28 + i * 0.14), y + h * 0.18);
+        ctx.quadraticCurveTo(x + w * (0.32 + i * 0.14), y + h * 0.02, x + w * (0.36 + i * 0.14), y + h * 0.18);
+        ctx.stroke();
+      }
+    } else if (motif === "sun") {
+      for (let i = 0; i < 10; i += 1) {
+        const angle = (i / 10) * Math.PI * 2;
+        const cx = x + w * 0.5;
+        const cy = y + h * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(angle) * w * 0.14, cy + Math.sin(angle) * h * 0.18);
+        ctx.lineTo(cx + Math.cos(angle) * w * 0.25, cy + Math.sin(angle) * h * 0.32);
+        ctx.stroke();
+      }
+    } else if (motif === "void") {
+      for (let i = 0; i < 4; i += 1) {
+        const px = x + w * (0.28 + i * 0.15);
+        ctx.save();
+        ctx.translate(px, y + h * 0.5);
+        ctx.rotate(Math.PI / 4);
+        ctx.strokeRect(-w * 0.035, -w * 0.035, w * 0.07, w * 0.07);
+        ctx.restore();
+      }
+    } else if (motif === "nexus") {
+      const points = [
+        [0.32, 0.3, "#ff8a4c"],
+        [0.68, 0.3, "#86d7ff"],
+        [0.32, 0.68, "#fff17a"],
+        [0.68, 0.68, "#b8f25f"],
+      ];
+      points.forEach(([px, py, color]) => {
+        ctx.strokeStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(x + w * 0.5, y + h * 0.45);
+        ctx.lineTo(x + w * px, y + h * py);
+        ctx.stroke();
+        drawEye(ctx, x + w * px, y + h * py, color);
+      });
+    }
+
+    ctx.restore();
+  }
+
+  drawEnemy(ctx, enemy) {
+    const image = this.assets.get(enemy.assetId);
+    if (image) {
+      ctx.drawImage(image, enemy.x, enemy.y, enemy.width, enemy.height);
+      return;
+    }
+
+    const palette = enemy.palette || {};
+    ctx.save();
+    ctx.fillStyle = palette.fill || "#657363";
+    ctx.strokeStyle = palette.accent || "#e6c15b";
+    ctx.lineWidth = 2;
+    roundedRect(ctx, enemy.x, enemy.y, enemy.width, enemy.height, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = palette.core || "#61d7c6";
+    ctx.shadowColor = palette.core || "#61d7c6";
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(enemy.x + enemy.width / 2, enemy.y + enemy.height * 0.46, Math.min(enemy.width, enemy.height) * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    if (enemy.hpRatio < 0.65) {
+      ctx.strokeStyle = "rgba(20, 16, 12, 0.74)";
+      ctx.beginPath();
+      ctx.moveTo(enemy.x + enemy.width * 0.24, enemy.y + enemy.height * 0.22);
+      ctx.lineTo(enemy.x + enemy.width * 0.44, enemy.y + enemy.height * 0.72);
+      ctx.moveTo(enemy.x + enemy.width * 0.68, enemy.y + enemy.height * 0.18);
+      ctx.lineTo(enemy.x + enemy.width * 0.56, enemy.y + enemy.height * 0.78);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  drawHazards(ctx, hazards = []) {
+    for (const hazard of hazards) {
+      if (!hazard.active) continue;
+      const image = this.assets.get(hazard.assetId);
+      if (image) {
+        ctx.drawImage(image, hazard.x, hazard.y, hazard.width, hazard.height);
+        continue;
+      }
+
+      const palette = hazard.palette || {};
+      ctx.save();
+      ctx.fillStyle = palette.fill || "rgba(73, 112, 59, 0.58)";
+      ctx.strokeStyle = hazard.cooldownTimer > 0
+        ? "rgba(219, 232, 137, 0.42)"
+        : palette.danger || "rgba(255, 126, 97, 0.58)";
+      ctx.lineWidth = 2;
+      roundedRect(ctx, hazard.x, hazard.y, hazard.width, hazard.height, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = palette.thorn || "rgba(219, 232, 137, 0.92)";
+      ctx.lineWidth = 2;
+      for (let x = hazard.x + 12; x < hazard.x + hazard.width - 8; x += 18) {
+        ctx.beginPath();
+        ctx.moveTo(x, hazard.y + hazard.height - 4);
+        ctx.lineTo(x + 7, hazard.y + 5);
+        ctx.lineTo(x + 14, hazard.y + hazard.height - 4);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  drawProjectiles(ctx, projectiles = []) {
+    for (const projectile of projectiles) {
+      if (!projectile.active) continue;
+      const image = projectile.assetId ? this.assets.get(projectile.assetId) : null;
+      if (image) {
+        ctx.save();
+        const size = projectile.radius * 4;
+        ctx.translate(projectile.x, projectile.y);
+        ctx.rotate(Math.atan2(projectile.vy, projectile.vx) + Math.PI / 2);
+        ctx.drawImage(image, -size / 2, -size / 2, size, size);
+        ctx.restore();
+        continue;
+      }
+      ctx.save();
+      ctx.fillStyle = projectile.color;
+      ctx.strokeStyle = projectile.accent;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = projectile.accent;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.beginPath();
+      ctx.arc(projectile.x - projectile.radius * 0.25, projectile.y - projectile.radius * 0.3, projectile.radius * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   drawParticles(ctx, particles, kind) {
@@ -204,6 +458,18 @@ export class Renderer {
       const ratio = Math.max(0, particle.life / particle.maxLife);
       ctx.save();
       ctx.globalAlpha = ratio;
+      if (kind === "beam") {
+        ctx.strokeStyle = particle.color;
+        ctx.lineWidth = 2 + ratio * 3;
+        ctx.shadowColor = particle.color;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.moveTo(particle.x, particle.y);
+        ctx.lineTo(particle.x2, particle.y2);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       ctx.fillStyle = particle.color;
       ctx.beginPath();
       ctx.arc(particle.x, particle.y, particle.radius * (kind === "trail" ? ratio : 1), 0, Math.PI * 2);
@@ -227,8 +493,9 @@ export class Renderer {
   }
 
   drawPlaceholderBall(ctx, x, y, radius, element) {
-    const glow = element === "fire" ? "#ff663d" : "#61d7c6";
-    const core = element === "fire" ? "#ffd36b" : "#f5fff5";
+    const definition = getBallElement(element);
+    const glow = definition.glowColor;
+    const core = definition.color;
     const gradient = ctx.createRadialGradient(x - radius * 0.35, y - radius * 0.35, 2, x, y, radius * 1.35);
     gradient.addColorStop(0, "#ffffff");
     gradient.addColorStop(0.45, core);
@@ -244,8 +511,10 @@ export class Renderer {
   }
 
   drawPlaceholderBrick(ctx, x, y, width, height, type, hpRatio) {
-    const fill = type === "armored" ? "#68717b" : "#7f936e";
-    const accent = type === "armored" ? "#bbc9d2" : "#cde096";
+    const palette = typeof type === "object" ? type : null;
+    const typeId = palette ? palette.type : type;
+    const fill = palette?.fill || (typeId === "armored" ? "#68717b" : "#7f936e");
+    const accent = palette?.accent || (typeId === "armored" ? "#bbc9d2" : "#cde096");
     ctx.save();
     ctx.fillStyle = fill;
     ctx.strokeStyle = accent;
@@ -280,4 +549,20 @@ function roundedRect(ctx, x, y, width, height, radius) {
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
+}
+
+function drawEye(ctx, x, y, color) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(x, y, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.beginPath();
+  ctx.arc(x - 3, y - 3, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }

@@ -1,3 +1,4 @@
+import { CAMPAIGN_MAX_LEVEL } from "../data/levels.js";
 import { renderUpgradeCards } from "./UpgradeCards.js";
 
 export class ScreenManager {
@@ -38,7 +39,7 @@ export class ScreenManager {
     this.root.innerHTML = `
       <section class="overlay-panel" role="dialog" aria-labelledby="menuTitle">
         <h1 id="menuTitle">Elemental Barrage</h1>
-        <p class="panel-subtitle">Five-level browser demo</p>
+        <p class="panel-subtitle">Grasslands chapter prototype · ${CAMPAIGN_MAX_LEVEL} levels</p>
         <div class="save-summary">
           <span>Highest level: ${game.profile.highestLevelUnlocked}</span>
           <span>Coins: ${game.profile.coins}</span>
@@ -179,8 +180,8 @@ export class ScreenManager {
     const summary = game.lastRunSummary;
     this.root.innerHTML = `
       <section class="overlay-panel" role="dialog" aria-labelledby="victoryTitle">
-        <h2 id="victoryTitle">Demo Complete</h2>
-        <p class="panel-subtitle">Cleared level ${summary?.reachedLevel ?? 5} · ${summary?.coinsEarned ?? 0} coins earned</p>
+        <h2 id="victoryTitle">Chapter Complete</h2>
+        <p class="panel-subtitle">Cleared level ${summary?.reachedLevel ?? CAMPAIGN_MAX_LEVEL} · ${summary?.coinsEarned ?? 0} coins earned</p>
         <div class="button-stack">
           <button data-action="new">New Run</button>
           <button data-action="menu">Main Menu</button>

@@ -1,5 +1,9 @@
+import { getLevelReward } from "./scaling.js";
+
+export function getReward(levelNumber, options = {}) {
+  return getLevelReward(levelNumber, options);
+}
+
 export function getMvpReward(levelNumber) {
-  return {
-    coins: 18 + levelNumber * 7,
-  };
+  return getReward(levelNumber);
 }

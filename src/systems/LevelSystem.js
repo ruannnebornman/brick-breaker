@@ -2,12 +2,16 @@ import { Brick } from "../entities/Brick.js";
 import { Paddle } from "../entities/Paddle.js";
 import { Ball } from "../entities/Ball.js";
 import { Boss } from "../entities/Boss.js";
+import { Enemy } from "../entities/Enemy.js";
+import { Hazard } from "../entities/Hazard.js";
 import { BRICK_TYPES } from "../data/brickTypes.js";
-import { MVP_LEVELS } from "../data/levels.js";
+import { ENEMY_TYPES } from "../data/enemyTypes.js";
+import { HAZARD_TYPES } from "../data/hazardTypes.js";
+import { getLevelDefinition } from "../data/levels.js";
 
 export class LevelSystem {
-  createLevel(levelNumber, stats) {
-    const definition = MVP_LEVELS.find((level) => level.levelNumber === levelNumber) || MVP_LEVELS[0];
+  createLevel(levelNumber, stats, runSeed = 1) {
+    const definition = getLevelDefinition(levelNumber, runSeed);
     const paddle = new Paddle(stats);
     const balls = Array.from({ length: stats.ballCount || 1 }, (_, index) => new Ball({
         x: paddle.x,
@@ -18,23 +22,40 @@ export class LevelSystem {
         critChance: stats.critChance,
         critDamage: stats.critDamage,
         element: stats.element,
+        elements: stats.activeElements,
+        pierceChance: stats.pierceChance,
       }));
     balls.forEach((ball, index) => {
       ball.stickTo(paddle);
       ball.x += (index - (balls.length - 1) / 2) * stats.ballRadius * 2.5;
     });
 
+    const bricks = definition.bricks.map((brick, index) => {
+      const type = BRICK_TYPES[brick.type] || BRICK_TYPES.basic;
+      return new Brick(index + 1, brick, type);
+    });
+    const enemies = (definition.enemies || []).map((enemy, index) => {
+      const type = ENEMY_TYPES[enemy.type] || ENEMY_TYPES.slow_sentry;
+      return new Enemy(index + 1, enemy, type);
+    });
+    const hazards = (definition.hazards || []).map((hazard, index) => {
+      const type = HAZARD_TYPES[hazard.type] || HAZARD_TYPES.thorn_patch;
+      return new Hazard(index + 1, hazard, type);
+    });
+
     return {
       definition,
       paddle,
       balls,
-      bricks: definition.bricks.map((brick, index) => {
-        const type = BRICK_TYPES[brick.type] || BRICK_TYPES.basic;
-        return new Brick(index + 1, brick, type);
-      }),
+      bricks,
       boss: definition.boss ? new Boss(definition.boss) : null,
+      enemies,
+      hazards,
+      projectiles: [],
       particles: [],
       floatingTexts: [],
+      nextBrickId: bricks.length + 1,
+      nextProjectileId: 1,
       elapsed: 0,
       completed: false,
     };
@@ -42,7 +63,8 @@ export class LevelSystem {
 
   isClear(level) {
     const requiredBricksCleared = level.bricks.every((brick) => !brick.active || !brick.requiredForClear);
+    const requiredEnemiesCleared = level.enemies.every((enemy) => !enemy.active || !enemy.requiredForClear);
     const bossCleared = !level.boss || !level.boss.requiredForClear || !level.boss.active;
-    return requiredBricksCleared && bossCleared;
+    return requiredBricksCleared && requiredEnemiesCleared && bossCleared;
   }
 }

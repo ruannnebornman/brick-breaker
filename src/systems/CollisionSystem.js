@@ -36,10 +36,9 @@ export class CollisionSystem {
         }
       }
 
-      const targetHit = this.findTargetCollision(ball, game.level.bricks) || this.findTargetCollision(
-        ball,
-        game.level.boss ? [game.level.boss] : [],
-      );
+      const targetHit = this.findTargetCollision(ball, game.level.bricks) ||
+        this.findTargetCollision(ball, game.level.enemies) ||
+        this.findTargetCollision(ball, game.level.boss ? [game.level.boss] : []);
       if (targetHit) {
         this.resolveTarget(ball, targetHit, game);
       }
@@ -76,13 +75,14 @@ export class CollisionSystem {
   findTargetCollision(ball, targets) {
     let best = null;
     for (const target of targets) {
-      if (!target.active || ball.hitTargetsThisFrame.has(target.id)) continue;
+      const targetKey = stableTargetKey(target);
+      if (!target.active || ball.hitTargetsThisFrame.has(targetKey)) continue;
       const collision = circleRectCollision(ball, target);
       if (!collision) continue;
       if (
         !best ||
         collision.penetration > best.collision.penetration ||
-        (collision.penetration === best.collision.penetration && target.id < best.target.id)
+        (collision.penetration === best.collision.penetration && targetKey < stableTargetKey(best.target))
       ) {
         best = { target, collision };
       }
@@ -92,7 +92,7 @@ export class CollisionSystem {
 
   resolveTarget(ball, hit, game) {
     const { target, collision } = hit;
-    ball.hitTargetsThisFrame.add(target.id);
+    ball.hitTargetsThisFrame.add(stableTargetKey(target));
     ball.x += collision.normal.x * (collision.penetration + 0.5);
     ball.y += collision.normal.y * (collision.penetration + 0.5);
 
@@ -103,9 +103,11 @@ export class CollisionSystem {
         targetId: target.id,
         targetKind: target.kind,
         element: ball.element,
+        elements: ball.elements,
         baseDamage: ball.damage,
         critChance: ball.critChance,
         critDamage: ball.critDamage,
+        pierceChance: ball.pierceChance,
         statusPayload: null,
         collisionNormal: collision.normal,
         position: { x: collision.closestX, y: collision.closestY },
@@ -121,13 +123,19 @@ export class CollisionSystem {
         game.level,
         collision.closestX,
         collision.closestY,
-        ball.element === "fire" ? "rgba(255, 147, 64, 0.95)" : "rgba(255, 244, 180, 0.9)",
+        result.hitColor,
       );
     }
 
-    reflectVelocity(ball, collision.normal);
+    if (!result.pierced) {
+      reflectVelocity(ball, collision.normal);
+    }
     clampSpeed(ball, game.stats.ballMinSpeed, game.stats.ballMaxSpeed);
     enforceVerticalVelocity(ball);
     game.audio.play(result.destroyed ? "break" : "hit");
   }
+}
+
+function stableTargetKey(target) {
+  return `${target.kind}:${target.id}`;
 }

@@ -34,6 +34,10 @@ const game = new Game({
 assets.preload();
 game.boot();
 
+if (debug.enabled) {
+  window.__elementalBarrage = { game, input };
+}
+
 let lastTime = performance.now();
 let accumulator = 0;
 const fixedStep = 1 / 60;

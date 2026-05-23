@@ -9,9 +9,16 @@ export class Paddle {
     this.height = 18;
     this.speed = stats.paddleSpeed;
     this.targetX = this.x;
+    this.cannonEnabled = stats.cannonEnabled || false;
+    this.cannonCooldownDuration = stats.cannonCooldown || 1.15;
+    this.cannonCooldownRemaining = 0;
+    this.cannonProjectileCount = stats.cannonProjectileCount || 1;
+    this.cannonDamageMultiplier = stats.cannonDamageMultiplier || 0.55;
   }
 
   update(delta, input, settings) {
+    this.cannonCooldownRemaining = Math.max(0, this.cannonCooldownRemaining - delta);
+
     let direction = 0;
     if (input.isDown("ArrowLeft", "KeyA")) direction -= 1;
     if (input.isDown("ArrowRight", "KeyD")) direction += 1;
@@ -21,12 +28,18 @@ export class Paddle {
       this.targetX = this.x;
     } else if (settings.mouseControl && input.pointer.active) {
       this.targetX = input.pointer.x;
-      const diff = this.targetX - this.x;
-      const maxMove = this.speed * 1.35 * delta;
-      this.x += clamp(diff, -maxMove, maxMove);
+      this.x = this.targetX;
     }
 
     this.x = clamp(this.x, ARENA.left + this.width / 2, ARENA.right - this.width / 2);
+  }
+
+  canFireCannon() {
+    return this.cannonEnabled && this.cannonCooldownRemaining <= 0;
+  }
+
+  markCannonFired() {
+    this.cannonCooldownRemaining = this.cannonCooldownDuration;
   }
 
   get rect() {

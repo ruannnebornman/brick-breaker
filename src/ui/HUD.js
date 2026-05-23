@@ -1,3 +1,6 @@
+import { BIOMES } from "../data/biomes.js";
+import { getBallElement } from "../data/ballElements.js";
+
 export class HUD {
   constructor(root) {
     this.root = root;
@@ -15,6 +18,12 @@ export class HUD {
 
     const run = game.activeRun;
     const boss = game.level?.boss;
+    const biome = BIOMES[game.level?.definition?.biomeId];
+    const biomeLabel = biome?.name?.split(" / ")[0] || "Grasslands";
+    const elementLabel = getElementLabel(game.stats);
+    const cannon = game.level?.paddle?.cannonEnabled
+      ? `<span class="hud-pill">Cannon ${game.level.paddle.cannonCooldownRemaining <= 0 ? "Ready" : game.level.paddle.cannonCooldownRemaining.toFixed(1)}</span>`
+      : "";
     const bossHtml = boss?.active ? `
       <div class="boss-hud">
         <span>${boss.name}</span>
@@ -25,11 +34,13 @@ export class HUD {
       <div class="hud-bar">
         <div class="hud-group">
           <span class="hud-pill">Level ${run?.currentLevel ?? 1}</span>
-          <span class="hud-pill">Grasslands</span>
+          <span class="hud-pill">${biomeLabel}</span>
         </div>
         <div class="hud-group">
           <span class="hud-pill">Lives ${run?.lives ?? 0}</span>
           <span class="hud-pill">Balls ${game.level?.balls.filter((ball) => ball.active).length ?? 0}</span>
+          <span class="hud-pill">${elementLabel}</span>
+          ${cannon}
           <span class="hud-pill">Shields ${game.levelShieldCharges ?? 0}</span>
           <span class="hud-pill">Coins ${run?.coinsEarned ?? 0}</span>
         </div>
@@ -41,4 +52,11 @@ export class HUD {
       this.last = html;
     }
   }
+}
+
+function getElementLabel(stats) {
+  const activeElements = Array.isArray(stats?.activeElements) && stats.activeElements.length > 0
+    ? stats.activeElements
+    : [stats?.element || "normal"];
+  return [...new Set(activeElements)].map((id) => getBallElement(id).name).join(" + ");
 }

@@ -1,7 +1,10 @@
+import { getBallElement } from "../data/ballElements.js";
+
 export class ParticleSystem {
   trail(level, ball) {
     if (ball.stuckToPaddle || ball.age - (ball.lastTrailAt || 0) < 0.025) return;
     ball.lastTrailAt = ball.age;
+    const element = getBallElement(ball.element);
     level.particles.push({
       kind: "trail",
       x: ball.x,
@@ -9,7 +12,7 @@ export class ParticleSystem {
       vx: -ball.vx * 0.025,
       vy: -ball.vy * 0.025,
       radius: ball.radius * 0.9,
-      color: ball.element === "fire" ? "rgba(255, 116, 55, 0.72)" : "rgba(97, 215, 198, 0.62)",
+      color: element.trailColor,
       life: 0.18,
       maxLife: 0.18,
     });
@@ -62,6 +65,36 @@ export class ParticleSystem {
       color: "rgba(255, 112, 48, 0.78)",
       life: 0.28,
       maxLife: 0.28,
+    });
+  }
+
+  corrosion(level, x, y) {
+    level.particles.push({
+      kind: "spark",
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 36,
+      vy: -24 - Math.random() * 24,
+      radius: 3.6,
+      color: "rgba(152, 244, 84, 0.78)",
+      life: 0.3,
+      maxLife: 0.3,
+    });
+  }
+
+  chain(level, x1, y1, x2, y2, color = "rgba(180, 236, 255, 0.95)") {
+    level.particles.push({
+      kind: "beam",
+      x: x1,
+      y: y1,
+      x2,
+      y2,
+      vx: 0,
+      vy: 0,
+      radius: 2,
+      color,
+      life: 0.12,
+      maxLife: 0.12,
     });
   }
 

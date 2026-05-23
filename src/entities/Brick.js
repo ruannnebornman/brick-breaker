@@ -12,8 +12,11 @@ export class Brick {
     this.armor = definition.armor ?? type.armor;
     this.requiredForClear = definition.requiredForClear ?? type.requiredForClear;
     this.active = true;
+    this.ownerId = definition.ownerId || null;
+    this.tags = definition.tags || [];
     this.assetHealthy = type.assetHealthy;
     this.assetDamaged = type.assetDamaged;
+    this.palette = definition.palette || null;
     this.statusEffects = [];
   }
 

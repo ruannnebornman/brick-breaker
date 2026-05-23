@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "scripts": {
+    "playtest:headed": "node tools/playtest-headed.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}

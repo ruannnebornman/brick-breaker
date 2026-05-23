@@ -1,7 +1,9 @@
+import { CAMPAIGN_MAX_LEVEL } from "../data/levels.js";
+
 const STORAGE_KEY = "brickBreakerElementalBarrage.save.v1";
 const BACKUP_KEY = `${STORAGE_KEY}.backup`;
 const SAVE_VERSION = 1;
-const CONFIG_VERSION = "mvp-1";
+const CONFIG_VERSION = "campaign-100";
 
 export class SaveSystem {
   load() {
@@ -58,7 +60,7 @@ export class SaveSystem {
         coins: 0,
         shards: 0,
         permanentUpgrades: {},
-        unlockedElements: ["normal", "fire"],
+        unlockedElements: ["normal", "fire", "lightning", "frost", "acid"],
         completedBosses: [],
         bestLevelTimes: {},
         totalVictories: 0,
@@ -83,13 +85,31 @@ export class SaveSystem {
       ...defaults,
       ...source,
       version: SAVE_VERSION,
-      configVersion: source.configVersion || CONFIG_VERSION,
+      configVersion: CONFIG_VERSION,
       settings: { ...defaults.settings, ...(source.settings || {}) },
-      profile: { ...defaults.profile, ...(source.profile || {}) },
+      profile: normalizeProfile(defaults.profile, source.profile),
       activeRun: normalizeActiveRun(source.activeRun),
       statistics: { ...defaults.statistics, ...(source.statistics || {}) },
     };
   }
+}
+
+function normalizeProfile(defaultProfile, profile) {
+  const source = profile && typeof profile === "object" ? profile : {};
+  return {
+    ...defaultProfile,
+    ...source,
+    highestLevelUnlocked: clampInt(source.highestLevelUnlocked, 1, CAMPAIGN_MAX_LEVEL),
+    coins: nonNegativeNumber(source.coins),
+    shards: nonNegativeNumber(source.shards),
+    permanentUpgrades: source.permanentUpgrades && typeof source.permanentUpgrades === "object"
+      ? source.permanentUpgrades
+      : {},
+    unlockedElements: Array.isArray(source.unlockedElements) ? source.unlockedElements : defaultProfile.unlockedElements,
+    completedBosses: Array.isArray(source.completedBosses) ? source.completedBosses : [],
+    bestLevelTimes: source.bestLevelTimes && typeof source.bestLevelTimes === "object" ? source.bestLevelTimes : {},
+    totalVictories: nonNegativeNumber(source.totalVictories),
+  };
 }
 
 function normalizeActiveRun(activeRun) {
@@ -100,7 +120,7 @@ function normalizeActiveRun(activeRun) {
     exists: true,
     runId: String(activeRun.runId || crypto.randomUUID?.() || Date.now()),
     seed: Number(activeRun.seed || Date.now()),
-    currentLevel: clampInt(activeRun.currentLevel, 1, 5),
+    currentLevel: clampInt(activeRun.currentLevel, 1, CAMPAIGN_MAX_LEVEL),
     lives: clampInt(activeRun.lives, 0, 9),
     runUpgrades: Array.isArray(activeRun.runUpgrades) ? activeRun.runUpgrades : [],
     coinsEarned: Number(activeRun.coinsEarned || 0),
@@ -114,4 +134,9 @@ function clampInt(value, min, max) {
   const number = Math.trunc(Number(value));
   if (!Number.isFinite(number)) return min;
   return Math.max(min, Math.min(max, number));
+}
+
+function nonNegativeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, number) : 0;
 }
