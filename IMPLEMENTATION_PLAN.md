@@ -51,6 +51,32 @@ MVP scope decisions:
 
 This keeps gameplay rendering fast while avoiding complex canvas text layout for card-heavy UI.
 
+### Asset Loading and Placeholder Strategy
+
+Final art assets are not required before MVP implementation. The game should start with code-drawn placeholders and hot-swap generated images later without changing gameplay logic.
+
+Rules:
+
+- Use stable asset IDs from `ASSET_REQUIRED_LIST.md`, such as `paddle_basic`, `brick_basic_healthy`, `ball_fire`, and `bg_grasslands_training_ruins_arena`.
+- Keep asset references in a central manifest, likely `src/data/assets.js`, with IDs, relative paths, intended dimensions, anchor points, and fallback style hints.
+- Add an `AssetLoader` or equivalent helper that preloads images, tracks loaded/error states, and returns `null` or fallback metadata when an asset is unavailable.
+- Renderer code must draw a code-generated fallback for every gameplay-critical asset.
+- Gameplay hitboxes, HP, physics, and clear conditions must come from data and entity state, not from image dimensions.
+- Canvas rendering controls scale, rotation, anchor, glow, tint, and damage overlays so replacing an image does not alter collision behavior.
+- Missing or failed images should never block starting a run, continuing a save, or clearing a level.
+- Use transparent PNGs for sprites/effects and 16:10 images for backgrounds when generated assets are added.
+- Keep paths relative, for example `./assets/images/p0/paddle_basic.png`, so GitHub Pages project paths keep working.
+
+MVP placeholder expectations:
+
+- Bricks can be rounded rectangles with code-drawn cracks or tint changes.
+- Balls can be circles with simple gradients/trails.
+- Paddle can be a rectangle or capsule shape.
+- Background can be a code-drawn low-contrast gradient/grid.
+- Particles can be generated directly in Canvas.
+
+This lets implementation prove collision, feel, save/load, and UI flow first. Art can be generated in batches and swapped in by updating the manifest and image files.
+
 ### State Ownership
 
 `Game` owns the active state and delegates to systems:
@@ -132,6 +158,7 @@ Active runs must be declarative. Saves should store profile progress, settings, 
 Optional later folders:
 
 ```text
+/assets/images/
 /assets/audio/
 /assets/fonts/
 /docs/
@@ -1667,6 +1694,7 @@ Virtual buttons for abilities can wait until those abilities exist.
 - Game loop with `boot`, `mainMenu`, `playing`, `paused`, and `settings`.
 - Input manager.
 - Basic renderer.
+- Asset manifest and loader stub with code-drawn fallbacks for missing images.
 - `SaveSystem` with versioned defaults, settings, highest unlocked level, coins, and active run summary.
 - Main menu with New Run, Continue Run, and Settings.
 - Pause menu with Resume, Restart Level, Settings, and Main Menu.
@@ -1676,6 +1704,7 @@ Done when:
 
 - Browser opens from static files.
 - Canvas resizes correctly.
+- Missing image assets fall back to code-drawn placeholders.
 - Loop runs without errors.
 - Pause/menu state transitions work.
 - Settings and progress survive reload.
@@ -1728,6 +1757,7 @@ Done when:
 - Add compact HUD.
 - Add focus-safe overlay input rules.
 - Add basic touch controls: drag paddle and tap to launch.
+- Hot-swap any generated P0 images that already exist, while keeping placeholders for missing ones.
 
 Done when:
 
@@ -1735,6 +1765,7 @@ Done when:
 - Effects stay readable.
 - Audio does not break when unavailable or blocked.
 - Keyboard, mouse, and touch input do not conflict with overlays.
+- Asset loading errors do not block play.
 
 ### Milestone 5: MVP Validation and GitHub Pages Check
 
@@ -1959,6 +1990,7 @@ The first playable prototype should be intentionally small.
 Included:
 
 - Static page with responsive canvas.
+- Code-drawn placeholders for gameplay-critical assets, with generated images hot-swappable through the asset manifest.
 - Main menu with New Run, Continue Run, and Settings.
 - Pause menu with Resume, Restart Level, Settings, and Main Menu.
 - One biome: Grasslands / Training Ruins.
