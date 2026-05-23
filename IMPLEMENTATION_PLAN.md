@@ -17,6 +17,20 @@ The design goal is a juicy, replayable, expandable game that still stays realist
 
 The first implementation should prioritize a tight, playable core loop before adding all upgrade and biome complexity. The final architecture should make it easy to add content by editing data files rather than rewriting systems.
 
+### MVP Direction After Review
+
+The reviewed MVP is a five-level browser demo, not a compressed version of the full 100-level game. It should prove the feel of ball control, collision stability, upgrade choice, save/reload behavior, and static hosting before adding the larger content plan.
+
+MVP scope decisions:
+
+- One biome: Grasslands / Training Ruins.
+- Five levels, with levels 1-4 as normal brick layouts and level 5 as a simple mini-boss or large target fight.
+- Hand-authored or tightly templated layouts first; seeded procedural generation comes after the core feel is proven.
+- Normal baseline balls plus Fire as an always-available run-upgrade path. No permanent element unlock logic in the MVP.
+- Fire only applies capped burn in the MVP. Fire spread, explosions, resistance, and other elements are later work.
+- No enemies, hazards, field bosses, permanent shop, advanced paddle abilities, moving bricks, portals, gravity wells, or complex status stacking in the first playable demo.
+- Save/load, menu flow, and reload recovery are early requirements, not late polish.
+
 ## B. Technical Architecture
 
 ### Runtime Model
@@ -25,8 +39,10 @@ The first implementation should prioritize a tight, playable core loop before ad
 - `styles.css` provides responsive layout, menu panels, upgrade cards, HUD overlays, and canvas framing.
 - `src/main.js` initializes configuration, save data, input, canvas, game state, and starts the loop.
 - Canvas uses a fixed logical resolution and scales to fit the browser window.
+- Canvas caps device pixel ratio, likely with `Math.min(window.devicePixelRatio || 1, 2)`, to avoid wasting fill rate on high-DPI screens.
 - JavaScript modules are split by responsibility: core loop, entities, systems, data, and UI.
 - No bundler is required. All imports use relative paths that work on GitHub Pages.
+- Early implementation may use fewer modules than the final file structure. Split files when boundaries become useful, not just because the final architecture lists them.
 
 ### Rendering Split
 
@@ -51,6 +67,8 @@ This keeps gameplay rendering fast while avoiding complex canvas text layout for
 - `UISystem` synchronizes HTML overlays with game state.
 
 The game should avoid a heavy entity-component framework. Plain classes plus data-driven configs are enough.
+
+Active runs must be declarative. Saves should store profile progress, settings, current level, run seed, lives, coins earned, and chosen upgrades. They should not store live entities, particles, projectiles, timers, generated internals, or boss attack state. On continue, the current level is regenerated from the saved seed and run summary.
 
 ## C. File Structure
 
@@ -157,6 +175,7 @@ Responsibilities:
 ### `Renderer`
 
 - Owns canvas context setup and device pixel ratio scaling.
+- Uses a capped device pixel ratio for performance.
 - Clears and draws the game scene.
 - Applies camera shake.
 - Draws backgrounds, entities, particles, floating text, and debug overlays.
@@ -186,6 +205,9 @@ Utility module with geometry helpers:
 ### `AudioSystem`
 
 - Uses Web Audio API for simple generated sounds.
+- Initializes only after a user gesture.
+- Treats audio as optional: if `AudioContext` is unavailable or suspended, sound calls safely no-op.
+- Resumes or rechecks audio after tab focus changes and user interaction.
 - Sounds:
   - Ball launch.
   - Paddle hit.
@@ -198,19 +220,27 @@ Utility module with geometry helpers:
   - Game over.
 - Must start only after user interaction due to browser audio policies.
 - Can be muted in settings.
+- MVP should ship muted-by-setting support and one or two placeholder sounds at most. Audio polish is not required before the core loop works.
 
 ### `Debug`
 
 Enabled by `?debug=1` or a local toggle.
 
-Features:
+MVP features:
 
 - FPS and entity counts.
 - Seed and level info.
 - Collision box overlay.
+- Next-level hotkey.
+- Reset save with confirmation.
+
+Later features:
+
 - Active status effect overlay.
 - Hotkeys for next level, spawn upgrade, spawn boss, clear level, add currency, and reset save.
 - Save export/import for testing.
+- Dangerous or state-changing tools, including reset save, currency grants, spawn tools, and clear level, are available only when `?debug=1` is present.
+- Debug UI must be visually labeled so test state is never confused with normal play.
 
 ## E. Game State Flow
 
@@ -239,20 +269,25 @@ Flow:
    - Move to `mainMenu`.
 
 2. `mainMenu`
-   - Options: Continue Run, New Run, Level Select, Permanent Upgrades, Settings.
+   - MVP options: Continue Run, New Run, Settings.
+   - Later options: Level Select and Permanent Upgrades.
    - Continue is available only if `activeRun` exists.
 
 3. `levelSelect`
-   - Shows unlocked levels.
-   - Starting from a selected level begins a run using permanent upgrades and no temporary run upgrades unless resuming an active run.
+   - Post-MVP feature.
+   - Treat as practice or campaign checkpoint mode, not the main roguelite run identity.
+   - Starting from a selected level begins without temporary run upgrades unless a later checkpoint design says otherwise.
 
 4. `playing`
    - Updates input, physics, entities, collisions, statuses, boss AI, projectiles, hazards, particles.
    - Checks fail and clear conditions.
+   - If all active balls are lost, the player loses one life and a fresh ball relaunches from the paddle.
+   - Individual lost balls during multiball do not cost lives until no balls remain.
 
 5. `paused`
    - Freezes simulation.
-   - Options: Resume, Restart Level, Abandon Run, Settings, Main Menu.
+   - Options: Resume, Restart Level, Settings, Main Menu.
+   - Later run modes may add Abandon Run.
 
 6. `levelComplete`
    - Grants rewards.
@@ -265,6 +300,7 @@ Flow:
    - Number keys or mouse choose one.
    - Applies run upgrade.
    - Saves active run and starts next level.
+   - Gameplay input is blocked while the overlay is active.
 
 8. `gameOver`
    - Shows summary and currency earned.
@@ -275,16 +311,24 @@ Flow:
    - Shows completion summary after level 100.
    - Unlocks post-clear difficulty options later if desired.
 
+Tab visibility behavior:
+
+- When the page becomes hidden, simulation pauses and accumulated time is discarded.
+- When the page becomes visible again, render resumes immediately but simulation waits for the next normal frame.
+- This prevents a burst of catch-up physics after tab switching.
+
 ## F. Main Game Loop Design
 
 Use `requestAnimationFrame` with a fixed simulation step for stable collision behavior.
 
 Recommended loop:
 
-- Target simulation step: `1 / 120` seconds for smoother ball collision.
+- MVP target simulation step: `1 / 60` seconds.
+- Later target simulation step may move to `1 / 120` only if profiling proves it is needed and affordable.
 - Maximum accumulated time: `0.25` seconds to avoid spiral-of-death after tab switching.
 - Render once per animation frame.
 - Pause stops simulation updates but still allows overlay rendering.
+- Ball movement is substepped based on distance traveled, with a hard maximum substep count per ball per frame.
 
 Update order during `playing`:
 
@@ -519,6 +563,7 @@ Ball movement uses substeps to reduce tunneling:
 
 - Calculate total distance for the frame.
 - Split movement so each substep moves no more than roughly half the ball radius or a configured maximum such as `6px`.
+- Cap total substeps per ball per frame. If the cap is hit, clamp remaining movement for that frame rather than allowing runaway CPU cost.
 - In each substep:
   - Move ball.
   - Check wall collision.
@@ -573,6 +618,69 @@ Later optimization:
 - Uniform spatial grid for bricks and hazards.
 - Query only nearby cells for each ball/projectile.
 
+### MVP Collision Contract
+
+Collision rules need to be deterministic before implementation.
+
+Priority within each ball substep:
+
+1. Arena walls.
+2. Paddle.
+3. Bricks.
+4. Mini-boss or boss target.
+5. Later entities: enemies, projectiles, hazards.
+
+MVP collision rules:
+
+- Resolve at most one non-wall gameplay collision per ball per substep.
+- If a ball overlaps multiple bricks in the same substep, choose the target with the deepest penetration, then lowest `id` as a stable tie-breaker.
+- If a paddle and brick collision happen in the same substep, paddle wins only when the ball is moving downward and intersects the paddle zone.
+- Nudge the ball out along the chosen collision normal before reflecting.
+- Prevent nearly horizontal bounces by enforcing a minimum absolute vertical velocity after paddle and brick reflections.
+- Clamp ball speed between defined minimum and maximum values after every stat calculation and collision response.
+- If a ball remains overlapped after the allowed collision attempts, move it to the nearest safe point along the collision normal and skip further damage for that target this frame.
+- Piercing balls may damage multiple targets per frame, but MVP should cap this to one target per substep and a small per-frame maximum.
+- Boss and mini-boss hitboxes do not overlap required bricks in MVP.
+
+### Life, Loss, and Respawn Rules
+
+- The player starts each MVP level with a fixed life count, such as 3.
+- Losing an individual ball during multiball does not cost a life while at least one active ball remains.
+- Losing all active balls costs one life.
+- If lives remain, the next ball spawns stuck to the paddle at the paddle center and launches on Space, click, or tap.
+- If lives reach zero, the run enters `gameOver`.
+- MVP has no enemy projectiles or hazards to clear on respawn. Later versions should clear hostile projectiles and temporary warning-only hazards on life loss unless a mode explicitly keeps them.
+
+### Hit and Damage Event Shape
+
+Every damaging interaction should go through one event shape and one damage function.
+
+```text
+hitEvent:
+  sourceId
+  sourceKind
+  targetId
+  targetKind
+  element
+  baseDamage
+  critChance
+  critDamage
+  statusPayload
+  collisionNormal
+  position
+```
+
+Damage pipeline:
+
+1. Build `hitEvent`.
+2. Calculate crit.
+3. Apply armor and resistance.
+4. Apply the final damage to HP.
+5. Apply allowed status effects.
+6. Emit particles, floating text, combo events, and reward hooks.
+
+The MVP should support armor, crit, and Fire burn through this pipeline. Splash, chain, pierce expansion, chill, corrosion, and boss resistance caps can be added later without creating separate damage paths.
+
 ## I. Element and Status Effect System
 
 ### Design Principles
@@ -616,6 +724,7 @@ Effects:
 Role:
 
 - Area damage and damage over time.
+- MVP role: optional burn build from the run-upgrade pool.
 
 Effects:
 
@@ -623,15 +732,16 @@ Effects:
   - Ticks damage every `0.5s`.
   - Duration scales with `statusDuration`.
   - Stacks refresh duration, with limited stack count.
-- Spread chance:
+- Later spread chance:
   - On hit or burn tick, nearby bricks within `spreadRange` may receive a smaller burn.
-- Explosion chance:
+- Later explosion chance:
   - On hit or kill, deals splash damage in `explosionRadius`.
 
 Balance notes:
 
 - Strong against dense brick layouts.
 - Weaker against fire-resistant Ember enemies and bosses.
+- MVP Fire has burn only. No spread, explosion, Fire resistance, or Fire enemy interactions until after the first playable demo.
 
 ### Lightning
 
@@ -719,6 +829,13 @@ On hit:
 5. Spawn particles/trails/floating text.
 6. Notify reward/combo systems.
 
+MVP element handling:
+
+- Normal is the default ball behavior.
+- Fire is available immediately through upgrade choices and does not require permanent unlocks.
+- Fire upgrades add or improve capped burn.
+- Lightning, Frost, and Acid can exist as empty registered configs for future compatibility, but they are not offered or spawned in MVP.
+
 ## J. Upgrade System
 
 ### Two Progression Layers
@@ -774,12 +891,19 @@ Rarity affects:
 
 ### Run Upgrade Categories
 
-Ball upgrades:
+MVP run upgrades should stay simple and avoid creating new collision shapes beyond multiball:
 
 - Damage.
 - Speed.
-- Element chance.
 - Critical hit chance.
+- Paddle width.
+- Extra ball or multiball.
+- Fire burn.
+- Shield or life safety.
+
+Post-MVP ball upgrades:
+
+- Element chance.
 - Critical damage.
 - Pierce chance.
 - Bounce count.
@@ -788,19 +912,21 @@ Ball upgrades:
 - Chain range.
 - Status duration.
 
-Paddle upgrades:
+Post-MVP paddle and ability upgrades:
 
-- Paddle length.
 - Fire rate.
 - Multi-shot.
-- Crit rate.
 - Cannons.
 - Firewall.
 - Repulse.
-- Lucky shot.
 - Ball magnetism.
 - Shield charge.
 - Elemental amplifier.
+
+Delayed or experimental:
+
+- Lucky Shot.
+- Coin bonus upgrades.
 
 ### Example Upgrade Behaviors
 
@@ -835,6 +961,8 @@ Repulse:
 
 Lucky Shot:
 
+- Excluded from MVP.
+- Should stay out of early balancing because it is high variance and hard to tune.
 - Small chance on hit to trigger one rare outcome:
   - Massive damage.
   - Spawn bonus ball.
@@ -857,6 +985,32 @@ Elemental Amplifier:
 
 - Increases element proc chance and status potency.
 - Later stacks may make the current biome's weakness more important.
+
+### Stat Calculation and Stacking Rules
+
+Apply stat changes in this order:
+
+1. Base level/player stats.
+2. Permanent upgrades.
+3. Run upgrades.
+4. Temporary buffs.
+5. Status effects.
+6. Caps and diminishing returns.
+
+MVP caps:
+
+- Ball speed has a hard minimum and maximum.
+- Paddle width has a hard maximum.
+- Active ball count has a hard maximum.
+- Crit chance cannot reach 100 percent.
+- Burn has a max stack count and max tick rate.
+
+Conflict rules:
+
+- Upgrades that add more hit events, such as multiball, pierce, chain, explosions, and rapid projectiles, need explicit per-frame event budgets before they can be combined.
+- Cooldown reduction cannot reduce active abilities below their minimum cooldown.
+- Defensive upgrades should prevent mistakes, not erase ball-loss risk entirely.
+- Economy upgrades are delayed until the base reward curve is known.
 
 ### Upgrade Offering Rules
 
@@ -883,11 +1037,21 @@ Levels 91-100: Common 24, Uncommon 32, Rare 28, Epic 12, Legendary 4
 
 ### Overall Structure
 
+Full game target:
+
 - 100 levels total.
 - 10 biomes, 10 levels each.
 - Every 10th level is a major boss.
 - Non-boss levels are generated from biome rules, level number, seed, and difficulty budget.
 - Field bosses can appear on non-boss levels after the early tutorial stretch.
+
+MVP target:
+
+- 5 levels total.
+- One biome.
+- Levels are hand-authored or generated from very constrained templates.
+- Level 5 is a simple mini-boss or large target, not a full three-phase boss.
+- No field bosses, enemies, hazards, moving bricks, or procedural layout surprises.
 
 ### Level Data Shape
 
@@ -906,6 +1070,15 @@ rewardMultiplier
 ```
 
 ### Generation Process
+
+MVP process:
+
+1. Load a hand-authored or tightly templated level definition.
+2. Validate brick positions against arena margins and the forbidden paddle zone.
+3. Create required bricks and optional non-required decorations.
+4. Fall back to a known safe layout if validation fails.
+
+Full generation process:
 
 1. Determine biome from level number.
 2. Determine whether level is boss level.
@@ -929,6 +1102,7 @@ rewardMultiplier
    - No impossible overlapping placements.
    - Boss has enough open space.
    - Paddle area is clear.
+   - If validation fails after a small retry count, use a safe fallback layout instead of retrying indefinitely.
 
 ### Clear Conditions
 
@@ -942,6 +1116,17 @@ Boss level clears when:
 
 - Boss HP reaches zero.
 - Optional summoned bricks do not need to be cleared unless marked as required.
+
+Strict clear-condition rules:
+
+- A target counts toward completion only if it is created with `requiredForClear: true`.
+- MVP required targets are only required bricks and the level 5 mini-boss target.
+- Summoned, spawned, or regenerated bricks default to `requiredForClear: false`.
+- Regenerating bricks are considered cleared once their required original instance has been destroyed, unless a later level explicitly marks the regenerated form as required.
+- Shield sources block damage but do not count for clear unless they are also marked required.
+- Hazards never count for clear.
+- If a required brick becomes unreachable or stuck because of a bug, debug builds should flag the level invalid and normal builds should expose a safe fallback clear or restart path rather than trapping the player.
+- Level completion is checked after damage resolution and entity removals, not during collision iteration.
 
 ### Level Progression Pacing
 
@@ -983,6 +1168,20 @@ Each biome config should define:
 - Resistance and weakness hints.
 
 ## M. Boss and Field Boss Design
+
+### MVP Mini-Boss
+
+The first playable demo should use one simple level 5 mini-boss or large target:
+
+- One rectangular hitbox.
+- One HP bar.
+- One passive behavior or one simple attack.
+- No summons.
+- No phases unless the phase is purely visual.
+- No overlapping required bricks.
+- No status resistance matrix beyond taking reduced burn if needed for balance.
+
+This validates boss damage, HP display, and level-complete flow without committing to the full boss framework.
 
 ### Boss System
 
@@ -1224,6 +1423,7 @@ brickBreakerElementalBarrage.save.v1
 
 ```text
 version
+configVersion
 createdAt
 updatedAt
 settings
@@ -1257,6 +1457,8 @@ bestLevelTimes
 totalVictories
 ```
 
+MVP can omit or leave empty `shards`, `permanentUpgrades`, `unlockedElements`, `completedBosses`, `bestLevelTimes`, and `totalVictories`. Keep the save reader tolerant of missing post-MVP fields.
+
 ### Active Run
 
 ```text
@@ -1266,11 +1468,13 @@ seed
 currentLevel
 lives
 runUpgrades
-temporaryStats
+coinsEarned
 pendingReward
 startedAt
 lastSavedAt
 ```
+
+Do not save live level state. Do not persist active balls, brick HP, particles, projectiles, timers, collision state, generated arrays, or boss scheduler internals. Continuing a run regenerates the current level from `seed`, `currentLevel`, `lives`, and `runUpgrades`.
 
 ### Statistics
 
@@ -1288,6 +1492,8 @@ favoriteElement
 
 Save after:
 
+- Starting a new run.
+- Starting a level.
 - Completing a level.
 - Choosing an upgrade.
 - Buying permanent upgrades.
@@ -1296,43 +1502,53 @@ Save after:
 - Victory.
 - Returning to menu.
 
-Do not save every frame. For crash resilience, optionally autosave the active run at level start and after major transitions.
+Do not save every frame. For crash resilience, autosave the active run at level start and after major transitions.
 
 ### Migration and Safety
 
 - Store a `version`.
+- Store a lightweight `configVersion` or content version so development-time data changes can be detected.
 - Validate loaded data.
 - If corrupt, keep a backup copy under a `.backup` key before replacing.
 - Provide debug export/import for manual testing.
 - Use default values for missing fields.
+- If config data changes in a way that invalidates an active run during development, preserve permanent progress and clear only the active run.
+- If migration fails, move the bad save to backup, load defaults, and show a reset/import option.
 
 ## P. UI Screens and HUD Plan
 
 ### Main Menu
 
-Buttons:
+MVP buttons:
 
 - Continue Run.
 - New Run.
-- Level Select.
-- Permanent Upgrades.
 - Settings.
 
 Also show:
 
 - Highest unlocked level.
-- Coins/shards.
-- Current permanent upgrade tier summary.
+- Coins.
+- Current run summary if a run can continue.
+
+Later buttons:
+
+- Level Select.
+- Permanent Upgrades.
 
 ### Level Select
 
+- Post-MVP.
 - Grid of levels 1-100.
 - Locked levels are disabled.
 - Boss levels visually marked.
 - Biome bands or color-coded groups.
-- Selecting a level starts a run from that level with permanent upgrades.
+- On mobile, prefer biome pages or compact chapter rows over a dense 100-button grid.
+- Its role must be decided before implementation: practice mode, campaign checkpoint, or true run start.
 
 ### Permanent Upgrade Shop
+
+- Post-MVP.
 
 Categories:
 
@@ -1348,7 +1564,7 @@ Examples:
 - Starting paddle width.
 - Starting multiball chance.
 - Extra upgrade choice.
-- Unlock Fire/Lightning/Frost/Acid.
+- Unlock Lightning/Frost/Acid and later Fire variants. MVP Fire burn is not locked behind the shop.
 - Starting shield charge.
 - Increased coin gain.
 
@@ -1380,23 +1596,28 @@ Keep HUD compact and readable. The gameplay area should remain visually dominant
   - Current stack count if applicable.
 - Number keys `1`, `2`, `3`, `4` choose cards.
 - Mouse click also chooses.
+- Space, click, and gameplay hotkeys do not affect gameplay while this screen is open.
+- If focus is inside a button, slider, checkbox, input, or confirmation dialog, keyboard shortcuts should not trigger unrelated actions.
 
 ### Pause Screen
 
 - Resume.
 - Restart Level.
 - Settings.
-- Abandon Run.
 - Main Menu.
+- Reset Save behind confirmation, available from settings or debug-only controls.
+- Later modes may add Abandon Run.
 
 ### Game Over Screen
 
 - Reached level.
 - Bricks destroyed.
 - Bosses defeated.
-- Coins/shards earned.
+- Coins earned.
+- Shards earned later if shards are added.
 - Most impactful upgrades.
-- Buttons: New Run, Permanent Upgrades, Main Menu.
+- MVP buttons: New Run, Main Menu.
+- Later buttons: Permanent Upgrades.
 
 ### Victory Screen
 
@@ -1415,16 +1636,40 @@ Keep HUD compact and readable. The gameplay area should remain visually dominant
 - Reduced motion.
 - Reset save with confirmation.
 
+### Focus and Input Rules
+
+- Gameplay input is active only in `playing`.
+- Overlay buttons and form controls receive normal browser focus.
+- Number keys select upgrade cards only when the upgrade overlay owns input.
+- Space launches the ball only during `playing` and never while a focused button or dialog is active.
+- Escape closes overlays or pauses according to the current mode, with no hidden gameplay side effects.
+- Reset save always requires confirmation.
+
+### Touch and Mobile Rules
+
+MVP mobile target:
+
+- Support modern mobile Safari and Chrome in landscape orientation.
+- Use drag-to-move paddle.
+- Use tap to launch.
+- Keep pause/settings reachable with a visible button.
+- Show a simple orientation message if the viewport is too narrow or short.
+
+Virtual buttons for abilities can wait until those abilities exist.
+
 ## Q. Implementation Milestones
 
-### Milestone 1: Static Shell and Core Loop
+### Milestone 1: Static Shell, Menu, Save, and Loop
 
-- Create file structure.
+- Create the initial file structure.
 - Add `index.html`, `styles.css`, and module entry.
-- Canvas responsive scaling.
-- Game loop with states.
+- Canvas responsive scaling with capped device pixel ratio.
+- Game loop with `boot`, `mainMenu`, `playing`, `paused`, and `settings`.
 - Input manager.
 - Basic renderer.
+- `SaveSystem` with versioned defaults, settings, highest unlocked level, coins, and active run summary.
+- Main menu with New Run, Continue Run, and Settings.
+- Pause menu with Resume, Restart Level, Settings, and Main Menu.
 - Debug FPS overlay.
 
 Done when:
@@ -1433,98 +1678,115 @@ Done when:
 - Canvas resizes correctly.
 - Loop runs without errors.
 - Pause/menu state transitions work.
+- Settings and progress survive reload.
+- A saved active run can be continued by regenerating the level from its summary.
 
-### Milestone 2: Core Brick Breaker Prototype
+### Milestone 2: Core Brick Breaker Feel and Collision Contract
 
 - Paddle movement.
 - Single ball launch.
-- Wall, paddle, and brick collisions.
+- Wall, paddle, and brick collisions using the MVP collision contract.
 - Basic brick HP and destruction.
-- Level clear detection.
-- Ball loss and restart.
+- One hand-authored test level.
+- Ball loss, life loss, stuck-to-paddle respawn, and game over.
+- Stable hit event and damage function.
+- Speed clamps and anti-horizontal bounce rules.
+- Debug collision overlay and seed/level display.
 
 Done when:
 
 - A simple level can be played and cleared.
 - Ball angles feel controllable.
 - No obvious collision sticking.
+- Losing all balls costs one life and relaunches cleanly.
+- Collision behavior is deterministic enough to debug.
 
-### Milestone 3: Data-Driven Levels and Biomes
+### Milestone 3: First Playable Demo Loop
 
-- Add biome configs.
+- Add one biome config.
 - Add brick type configs.
-- Add seeded level generation.
-- Implement levels 1-10 with generated layouts.
-- Add biome background and brick palettes.
+- Implement 5 hand-authored or tightly templated levels.
+- Add basic bricks and one special brick type, preferably armored.
+- Add level complete, rewards, upgrade choice, next-level flow, game over, and victory/demo-complete flow.
+- Add 6-8 simple run upgrades: damage, speed, paddle width, crit chance, multiball, Fire burn, shield/life safety.
+- Save active run summary after level start, level complete, and upgrade choice.
 
 Done when:
 
-- Levels can be generated from data.
+- A run from level 1 through level 5 works.
+- Upgrade choices noticeably affect play.
+- Reloading during a run resumes from the saved level summary.
+- Temporary upgrades reset after game over or new run.
+
+### Milestone 4: Fire, Mini-Boss, and MVP Polish
+
+- Implement Normal and Fire behavior only.
+- Fire applies capped burn only.
+- Add level 5 mini-boss or large target with HP bar and one simple behavior.
+- Add minimal particles: hit flash, brick break burst, and ball trail.
+- Add generated Web Audio unlock/mute support with one or two placeholder sounds or safe no-op calls.
+- Add compact HUD.
+- Add focus-safe overlay input rules.
+- Add basic touch controls: drag paddle and tap to launch.
+
+Done when:
+
+- The five-level demo feels complete enough to share.
+- Effects stay readable.
+- Audio does not break when unavailable or blocked.
+- Keyboard, mouse, and touch input do not conflict with overlays.
+
+### Milestone 5: MVP Validation and GitHub Pages Check
+
+- Manual test pass for collisions, save/load, upgrade application, clear conditions, mobile layout, and tab visibility.
+- Debug tools gated behind `?debug=1`: FPS, collision overlay, next level, reset save, seed display.
+- GitHub Pages deployment smoke test.
+- Performance pass for low-end laptop and mobile browser.
+- Tune the first five levels and rewards.
+
+Done when:
+
+- The game runs as a static site on GitHub Pages.
+- The first playable demo has no blocking save, collision, or progression bugs.
+- The plan is ready to expand beyond MVP.
+
+### Milestone 6: Data-Driven Expansion
+
+- Split early modules into the fuller architecture as patterns stabilize.
+- Add seeded level generation with safe fallback layouts.
+- Expand to levels 1-10.
+- Add biome visual variation and more brick layout patterns.
+- Add permanent upgrade shop if the economy is ready.
+
+Done when:
+
 - Restarting a level with the same seed reproduces layout.
+- Generated levels validate reliably.
+- The first biome has enough variety without breaking the core feel.
 
-### Milestone 4: Run Rewards and Upgrades
+### Milestone 7: Full Element and Upgrade Systems
 
-- Add run upgrade data.
-- Add reward screen with 3 cards.
-- Implement core ball and paddle stat modifiers.
-- Add coin rewards.
-- Add active run state.
-
-Done when:
-
-- Clearing a level gives upgrade choices.
-- Chosen upgrades affect gameplay.
-- Temporary upgrades reset correctly.
-
-### Milestone 5: Element System
-
-- Add Normal, Fire, Lightning, Frost, and Acid configs.
-- Implement status effect ticking.
-- Implement burn, chain, chill/brittle, corrosion.
-- Add elemental trails and hit effects.
+- Add Lightning, Frost, and Acid.
+- Add status stacking rules and boss resistance caps.
+- Add post-MVP upgrades such as pierce, chain, explosions, magnetism, cannons, firewall, repulse, and elemental amplifier.
+- Add event budgets for combined hit effects.
 
 Done when:
 
 - Each element has a distinct visible and mechanical identity.
-- Effects are balanced enough to continue development.
+- Upgrade combinations stay within performance and readability budgets.
 
-### Milestone 6: Paddle Abilities and Projectiles
+### Milestone 8: Boss, Enemy, Hazard, and Ability Frameworks
 
-- Add cannons.
-- Add firewall.
-- Add repulse.
-- Add shield charge.
-- Add multi-shot and magnetism.
-- Implement projectile system.
+- Add full boss entity and reusable attack helpers.
+- Build Level 10 Mossback Golem with deliberately limited phases.
+- Add minimal enemy, hazard, and projectile systems.
+- Add paddle ability support once projectiles and cooldowns are stable.
 
 Done when:
 
-- Paddle builds feel meaningfully different from pure ball builds.
-
-### Milestone 7: Boss Framework and First Boss
-
-- Add boss entity and boss system.
-- Add boss health bar.
-- Implement phases and attack scheduler.
-- Build Level 10 Mossback Golem.
-
-Done when:
-
-- Level 10 is a complete boss fight with at least 3 phase behaviors.
-
-### Milestone 8: Persistence and Menus
-
-- Add `SaveSystem`.
-- Add main menu.
-- Add continue/new run.
-- Add level select.
-- Add permanent upgrade shop.
-- Save settings and progress.
-
-Done when:
-
-- Progress survives reload.
-- Permanent upgrades can be bought and applied.
+- Level 10 is a complete boss fight.
+- New hostile systems use the existing damage, collision, save, and debug contracts.
 
 ### Milestone 9: Full 100-Level Content Pass
 
@@ -1533,6 +1795,7 @@ Done when:
 - Add field bosses.
 - Add biome-specific hazards and enemy types.
 - Tune generation rules.
+- Add level select only after its role is resolved.
 
 Done when:
 
@@ -1541,10 +1804,9 @@ Done when:
 
 ### Milestone 10: Juice, Balance, and Release
 
-- Add particles, trails, screen shake, floating damage numbers.
+- Expand particles, trails, screen shake, and floating damage numbers within readability budgets.
 - Add generated audio placeholders.
 - Tune scaling and reward economy.
-- Add debug tools.
 - Cross-browser testing.
 - GitHub Pages deployment check.
 
@@ -1561,6 +1823,7 @@ Done when:
 Risk:
 
 - Fast balls may skip through thin bricks.
+- Corner cases such as simultaneous paddle/brick hits, overlapping bricks, and high-speed multiball can become nondeterministic.
 
 Mitigation:
 
@@ -1568,26 +1831,31 @@ Mitigation:
 - Cap ball speed.
 - Increase collision thickness slightly for bricks.
 - Add debug collision overlay.
+- Use the MVP collision contract before adding pierce, chain, explosions, moving bricks, or boss overlap cases.
 
 ### Scope Creep From 100 Levels
 
 Risk:
 
 - Hand-making 100 levels is too much.
+- Building the 100-level generator before the core feel is stable can hide basic pacing and collision problems.
 
 Mitigation:
 
-- Use generated levels from biome rules.
-- Hand-author only boss definitions, layout patterns, and special modifiers.
+- Hand-author or tightly template the first five levels.
+- Add generated levels from biome rules only after the demo loop works.
+- Hand-author boss definitions, layout patterns, and special modifiers.
 
 ### Boss Complexity
 
 Risk:
 
 - Ten bosses with unique mechanics can become too large.
+- A first boss with summons, phases, shields, hazards, and resistances can consume the whole project.
 
 Mitigation:
 
+- Use a one-behavior level 5 mini-boss for MVP.
 - Build a reusable attack library:
   - Spawn bricks.
   - Fire projectile fan.
@@ -1603,6 +1871,7 @@ Mitigation:
 Risk:
 
 - Stacking upgrades can break difficulty.
+- Stacking hit-event upgrades can also break performance and readability.
 
 Mitigation:
 
@@ -1610,12 +1879,14 @@ Mitigation:
 - Use diminishing returns for speed, cooldown, chain count, and crit.
 - Add debug build presets.
 - Track level clear time and ball count during playtesting.
+- Add per-frame event budgets before combining multiball, pierce, chain, explosions, and rapid projectiles.
 
 ### Visual Clarity
 
 Risk:
 
 - Too many particles, balls, and hazards can obscure gameplay.
+- Element colors, biome backgrounds, damage numbers, and screen shake can compete with the ball.
 
 Mitigation:
 
@@ -1624,12 +1895,14 @@ Mitigation:
 - Add reduced motion option.
 - Limit particle counts.
 - Fade non-critical background effects.
+- Keep MVP effects minimal and privilege readability over spectacle.
 
 ### localStorage Corruption
 
 Risk:
 
 - Bad save data could block play.
+- Saved live entity state could become impossible to migrate.
 
 Mitigation:
 
@@ -1637,6 +1910,8 @@ Mitigation:
 - Provide reset save.
 - Keep backup key.
 - Use version migration.
+- Save declarative active run summaries only.
+- Clear invalid active runs while preserving permanent progress when config data changes.
 
 ### GitHub Pages Module Paths
 
@@ -1650,6 +1925,33 @@ Mitigation:
 - Use `./src/main.js` from `index.html`.
 - Avoid dynamic imports that depend on root paths.
 
+### Mobile and Browser Support
+
+Risk:
+
+- Safari, mobile Safari, and touch input can expose Canvas scaling, audio unlock, storage, and focus issues late.
+
+Mitigation:
+
+- Target current stable Chrome, Firefox, Safari, and mobile Safari.
+- Test landscape mobile layout during MVP.
+- Initialize audio only after user gesture and gracefully no-op if unavailable.
+- Avoid relying on keyboard-only flows.
+- Keep a visible pause/settings control for touch users.
+
+### UI Focus Conflicts
+
+Risk:
+
+- Space, number keys, or Escape can trigger gameplay while a menu, upgrade card, slider, or reset confirmation is focused.
+
+Mitigation:
+
+- Route input by game mode.
+- Let focused form controls consume keyboard input.
+- Block gameplay input while overlays own focus.
+- Confirm destructive actions.
+
 ## S. First Playable Prototype Scope
 
 The first playable prototype should be intentionally small.
@@ -1657,39 +1959,47 @@ The first playable prototype should be intentionally small.
 Included:
 
 - Static page with responsive canvas.
-- Main menu with Start.
+- Main menu with New Run, Continue Run, and Settings.
+- Pause menu with Resume, Restart Level, Settings, and Main Menu.
 - One biome: Grasslands / Training Ruins.
-- 5 generated levels.
-- One basic boss or mini-boss on level 5.
+- 5 hand-authored or tightly templated levels.
+- One simple mini-boss or large target on level 5.
 - Paddle movement by keyboard and mouse.
+- Basic touch support: drag paddle and tap to launch.
 - Ball launch with paddle angle control.
 - Multiple active balls supported internally, even if only one upgrade uses it.
 - Basic bricks with HP.
-- One special brick type: explosive or armored.
-- Normal and Fire balls only.
+- One special brick type: armored.
+- Normal baseline balls and Fire as an always-available run-upgrade path.
 - 6-8 run upgrades:
   - Ball damage.
   - Ball speed.
   - Paddle length.
-  - Multi-shot.
-  - Fire burn.
   - Crit chance.
-  - Shield charge.
-  - Coin bonus.
+  - Extra ball or multiball.
+  - Fire burn.
+  - Shield or life safety.
 - Simple reward screen.
-- Basic localStorage save for highest level and coins.
+- Basic `localStorage` save for settings, highest level, coins, and declarative active run summary.
 - Minimal particles and hit flashes.
-- Debug overlay.
+- Debug overlay gated behind `?debug=1` for state-changing tools.
+- Placeholder audio support that unlocks after user gesture and safely no-ops if unavailable.
 
 Excluded from first prototype:
 
 - Full 100 levels.
 - All biomes.
-- All elements.
-- Permanent upgrade shop depth.
+- Lightning, Frost, and Acid.
+- Fire spread, Fire explosions, and Fire resistance.
+- Permanent upgrade shop.
+- Level select.
 - Full boss roster.
 - Complex enemies.
 - Advanced hazards.
+- Field bosses.
+- Moving bricks.
+- Advanced paddle abilities such as cannons, firewall, repulse, and magnetism.
+- Coin bonus upgrades and Lucky Shot.
 - Audio polish.
 
 Prototype success criteria:
@@ -1698,6 +2008,8 @@ Prototype success criteria:
 - Level clear and reward loop works.
 - Upgrade choices noticeably change play.
 - Save/load works after page reload.
+- A continued active run regenerates cleanly from the run summary.
+- Keyboard, mouse, and touch controls do not conflict with overlays.
 - Static hosting works.
 
 ## T. Polished v1.0 Scope
@@ -1722,10 +2034,10 @@ Included:
   - Cannons.
   - Firewall.
   - Repulse.
-  - Lucky Shot.
   - Ball magnetism.
   - Shield charge.
   - Elemental amplifier.
+- Lucky Shot only if late balancing shows the game benefits from a high-variance upgrade.
 - Data-driven level generation.
 - Boss health bars and phase effects.
 - Floating damage numbers.
@@ -1764,9 +2076,6 @@ fire:
   color
   burnDamageRatio
   burnDuration
-  spreadChance
-  explosionChance
-  explosionRadius
 
 lightning:
   color
@@ -1790,6 +2099,8 @@ acid:
   pierceWeakenedThreshold
   maxStacks
 ```
+
+MVP only needs `normal` and the Fire burn fields. Add Fire spread/explosion fields, Lightning, Frost, and Acid when those systems are unlocked.
 
 ### Brick Types
 
@@ -1852,7 +2163,7 @@ Each type includes:
 - Boss bonus multipliers.
 - Field boss bonus multipliers.
 - Clear rating bonuses.
-- Duplicate reward chance behavior from Lucky Shot.
+- Late experimental reward modifiers, if any.
 
 ## Balancing Targets
 
@@ -1948,14 +2259,32 @@ Deployment:
 The recommended order is:
 
 1. Core canvas shell.
-2. Paddle, ball, brick collision feel.
-3. Level complete and upgrade choice loop.
-4. Save/load.
-5. Data-driven biomes and scaling.
-6. Elements.
-7. Paddle abilities.
-8. Boss framework.
-9. Full content expansion.
-10. Juice, polish, and balance.
+2. Menu, settings, save/load, and reload recovery.
+3. Paddle, ball, brick collision feel.
+4. Level complete and upgrade choice loop.
+5. Five-level MVP demo with Normal and Fire burn.
+6. Data-driven biomes and scaling.
+7. Full element system.
+8. Paddle abilities and projectiles.
+9. Boss framework and hostile systems.
+10. Full content expansion.
+11. Juice, polish, and balance.
 
 This order keeps the fun part testable early and avoids building a large content system before the core brick-breaking feel is proven.
+
+## Resolved Review Decisions
+
+The review notes have been folded into the main plan. These are the explicit decisions that replaced the open questions:
+
+- First playable demo: five-level mini-campaign in one biome, with a simple level 5 mini-boss or large target.
+- Fire timing: Fire is available in the MVP upgrade pool without permanent unlock logic. The default ball remains Normal until the player chooses Fire upgrades.
+- Fire behavior: burn only for MVP. Spread, explosions, resistance, and Fire-specific enemies wait.
+- Lives: losing all active balls costs one life. Individual multiball losses do not cost lives while another ball remains active.
+- Respawn: after life loss, a fresh ball spawns stuck to the paddle and waits for launch.
+- Level select: not in MVP. Later implementation must define whether it is practice, checkpoint, or true run start.
+- Active run save: yes for MVP, but only as a declarative summary. Reloading regenerates the current level from seed, current level, lives, coins earned, and chosen upgrades.
+- Mobile: MVP should support basic landscape touch play with drag paddle and tap-to-launch.
+- Simulation: MVP uses a 60 Hz fixed step, distance-based ball substeps, max substep caps, and capped device pixel ratio.
+- Collision: deterministic priority and hit limits are required before adding advanced collision effects.
+- Debug: core overlay comes early, but state-changing hotkeys are gated behind `?debug=1`.
+- Audio: generated Web Audio remains optional and must unlock after user gesture with safe no-op fallback.
