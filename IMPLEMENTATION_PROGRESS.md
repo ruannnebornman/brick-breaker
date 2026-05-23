@@ -145,7 +145,7 @@ Defaults documented:
 
 ## Step 5 - Milestone 5: MVP Validation and GitHub Pages Check
 
-Status: Partial
+Status: Complete
 
 Completed:
 - Added debug-only state-changing tools behind `?debug=1`: Next Level and Reset Save.
@@ -154,6 +154,9 @@ Completed:
 - Ran JavaScript syntax checks across all modules.
 - Ran module-level smoke checks for level creation, upgrade stat application, Fire path selection, multiball, reward flow, upgrade choice, and level 5 victory.
 - Started a local static server and confirmed `index.html`, `styles.css`, and `src/main.js` load over HTTP with relative paths.
+- Ran rendered Chromium/Playwright smoke checks against both local static hosting and the live GitHub Pages URL.
+- Confirmed menu, New Run, launch input, pause/resume, reload recovery, Continue Run, saved pending reward recovery, upgrade card selection, level transition, debug Next Level, demo victory, Canvas rendering, and orientation notice behavior.
+- Confirmed the hosted demo at `https://ruannnebornman.github.io/brick-breaker/` loads and runs as a static GitHub Pages site.
 
 Files changed:
 - `styles.css`
@@ -163,6 +166,4 @@ Files changed:
 
 Defaults documented:
 - The debug Next Level tool advances without granting rewards, so it is useful for progression smoke tests without mutating economy balance.
-
-Remaining before this step can be marked complete:
-- Browser-level smoke checks for menu, save/load, launch, clear flow, upgrades, mini-boss clear, debug controls, and responsive layout could not be run because no Chromium/Playwright-compatible browser is installed in this environment.
+- Missing P0 image requests return expected 404s until generated assets are added; Canvas fallback rendering was verified as nonblank on both local and hosted builds.
