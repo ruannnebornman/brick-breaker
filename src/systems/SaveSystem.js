@@ -123,11 +123,29 @@ function normalizeActiveRun(activeRun) {
     currentLevel: clampInt(activeRun.currentLevel, 1, CAMPAIGN_MAX_LEVEL),
     lives: clampInt(activeRun.lives, 0, 9),
     runUpgrades: Array.isArray(activeRun.runUpgrades) ? activeRun.runUpgrades : [],
+    temporaryUpgrades: normalizeTemporaryUpgrades(activeRun.temporaryUpgrades),
     coinsEarned: Number(activeRun.coinsEarned || 0),
     pendingReward: activeRun.pendingReward || null,
     startedAt: activeRun.startedAt || new Date().toISOString(),
     lastSavedAt: activeRun.lastSavedAt || new Date().toISOString(),
   };
+}
+
+function normalizeTemporaryUpgrades(upgrades) {
+  if (!Array.isArray(upgrades)) return [];
+  return upgrades
+    .map((upgrade) => {
+      if (!upgrade || typeof upgrade !== "object") return null;
+      return {
+        id: String(upgrade.id || "temporary"),
+        label: String(upgrade.label || upgrade.id || "Temporary"),
+        remainingLevels: clampInt(upgrade.remainingLevels, 0, 20),
+        statModifiers: upgrade.statModifiers && typeof upgrade.statModifiers === "object"
+          ? { ...upgrade.statModifiers }
+          : {},
+      };
+    })
+    .filter((upgrade) => upgrade && upgrade.remainingLevels > 0);
 }
 
 function clampInt(value, min, max) {

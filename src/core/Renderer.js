@@ -1,5 +1,6 @@
 import { BIOMES } from "../data/biomes.js";
 import { getBallElement } from "../data/ballElements.js";
+import { getRewardStyle } from "../data/rewardDrops.js";
 
 const LOGICAL_WIDTH = 960;
 const LOGICAL_HEIGHT = 600;
@@ -121,6 +122,7 @@ export class Renderer {
     }
 
     this.drawProjectiles(ctx, level.projectiles);
+    this.drawPickups(ctx, level.pickups);
     this.drawParticles(ctx, level.particles, "beam");
     this.drawParticles(ctx, level.particles, "trail");
 
@@ -169,17 +171,21 @@ export class Renderer {
     const image = this.assets.get(assetId);
     if (image) {
       ctx.drawImage(image, brick.x, brick.y, brick.width, brick.height);
-      return;
+    } else {
+      this.drawPlaceholderBrick(
+        ctx,
+        brick.x,
+        brick.y,
+        brick.width,
+        brick.height,
+        { type: brick.type, ...(brick.palette || {}) },
+        brick.hpRatio,
+      );
     }
-    this.drawPlaceholderBrick(
-      ctx,
-      brick.x,
-      brick.y,
-      brick.width,
-      brick.height,
-      { type: brick.type, ...(brick.palette || {}) },
-      brick.hpRatio,
-    );
+
+    if (brick.reward) {
+      this.drawRewardCore(ctx, brick);
+    }
   }
 
   drawBoss(ctx, boss) {
@@ -452,6 +458,31 @@ export class Renderer {
     }
   }
 
+  drawPickups(ctx, pickups = []) {
+    for (const pickup of pickups) {
+      if (!pickup.active || pickup.collected) continue;
+      const style = getRewardStyle(pickup.reward);
+      ctx.save();
+      ctx.translate(pickup.x, pickup.y);
+      ctx.shadowColor = style.glow;
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = style.fill;
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, pickup.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.stroke();
+      ctx.fillStyle = style.stroke;
+      ctx.font = "bold 12px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(style.text, 0, 0.5);
+      ctx.restore();
+    }
+  }
+
   drawParticles(ctx, particles, kind) {
     for (const particle of particles) {
       if (particle.kind !== kind) continue;
@@ -532,6 +563,30 @@ export class Renderer {
       ctx.lineTo(x + width * 0.72, y + height * 0.76);
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  drawRewardCore(ctx, brick) {
+    const style = getRewardStyle(brick.reward);
+    const cx = brick.x + brick.width / 2;
+    const cy = brick.y + brick.height / 2;
+    const radius = Math.min(brick.width, brick.height) * 0.28;
+    ctx.save();
+    ctx.shadowColor = style.glow;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = style.fill;
+    ctx.strokeStyle = style.stroke;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+    ctx.fillStyle = style.stroke;
+    ctx.font = "bold 11px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(style.text, cx, cy + 0.5);
     ctx.restore();
   }
 }

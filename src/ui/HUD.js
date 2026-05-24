@@ -29,6 +29,8 @@ export class HUD {
     const cannon = game.level?.paddle?.cannonEnabled
       ? `<span class="hud-pill">Cannon ${cannonStatus}</span>`
       : "";
+    const tempCount = game.activeRun?.temporaryUpgrades?.length || 0;
+    const temp = tempCount > 0 ? `<span class="hud-pill">Temp ${tempCount}</span>` : "";
     const bossHtml = boss?.active ? `
       <div class="boss-hud">
         <span>${boss.name}</span>
@@ -45,6 +47,7 @@ export class HUD {
           <span class="hud-pill">Lives ${run?.lives ?? 0}</span>
           <span class="hud-pill">Balls ${game.level?.balls.filter((ball) => ball.active).length ?? 0}</span>
           <span class="hud-pill">${elementLabel}</span>
+          ${temp}
           ${cannon}
           <span class="hud-pill">Shields ${game.levelShieldCharges ?? 0}</span>
           <span class="hud-pill">Coins ${run?.coinsEarned ?? 0}</span>

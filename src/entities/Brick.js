@@ -14,6 +14,7 @@ export class Brick {
     this.active = true;
     this.ownerId = definition.ownerId || null;
     this.tags = definition.tags || [];
+    this.reward = definition.reward ? { ...definition.reward } : null;
     this.assetHealthy = type.assetHealthy;
     this.assetDamaged = type.assetDamaged;
     this.palette = definition.palette || null;

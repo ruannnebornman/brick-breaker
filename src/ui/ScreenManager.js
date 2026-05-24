@@ -145,10 +145,14 @@ export class ScreenManager {
 
   renderUpgradeSelect(game) {
     const pending = game.activeRun?.pendingReward;
+    const title = pending?.kind === "stageBonus" ? "Stage Bonus" : "Choose Upgrade";
+    const subtitle = pending?.kind === "stageBonus"
+      ? `Level ${pending?.levelCompleted ?? 1} clear · choose a small bonus`
+      : `Level ${pending?.levelCompleted ?? 1} clear · +${pending?.coins ?? 0} coins`;
     this.root.innerHTML = `
       <section class="overlay-panel upgrade-panel" role="dialog" aria-labelledby="upgradeTitle">
-        <h2 id="upgradeTitle">Choose Upgrade</h2>
-        <p class="panel-subtitle">Level ${pending?.levelCompleted ?? 1} clear · +${pending?.coins ?? 0} coins</p>
+        <h2 id="upgradeTitle">${title}</h2>
+        <p class="panel-subtitle">${subtitle}</p>
         ${renderUpgradeCards(pending?.choices || [])}
         <div class="secondary-row">
           <button data-action="menu">Main Menu</button>

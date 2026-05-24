@@ -7,9 +7,16 @@ export function renderUpgradeCards(choices) {
           <span class="upgrade-rarity">${choice.rarity}</span>
           <strong>${choice.name}</strong>
           <span>${choice.description}</span>
-          <small>${choice.category} · ${choice.stack}/${choice.maxStacks}</small>
+          <small>${renderMeta(choice)}</small>
         </button>
       `).join("")}
     </div>
   `;
+}
+
+function renderMeta(choice) {
+  if (Number.isFinite(choice.stack) && Number.isFinite(choice.maxStacks)) {
+    return `${choice.category} · ${choice.stack}/${choice.maxStacks}`;
+  }
+  return choice.category || choice.kind || "Bonus";
 }

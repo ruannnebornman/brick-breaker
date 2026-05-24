@@ -64,6 +64,7 @@ export class ElementSystem {
       if (target.kind === "boss") {
         game.saveData.statistics.totalBossesDefeated += 1;
       }
+      game.handleDestroyedTarget?.(target);
     }
   }
 

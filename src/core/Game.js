@@ -5,10 +5,12 @@ import { EnemySystem } from "../systems/EnemySystem.js";
 import { HazardSystem } from "../systems/HazardSystem.js";
 import { LevelSystem } from "../systems/LevelSystem.js";
 import { ParticleSystem } from "../systems/ParticleSystem.js";
+import { PickupSystem } from "../systems/PickupSystem.js";
 import { ProjectileSystem } from "../systems/ProjectileSystem.js";
 import { RewardSystem } from "../systems/RewardSystem.js";
 import { UpgradeSystem } from "../systems/UpgradeSystem.js";
 import { CAMPAIGN_MAX_LEVEL } from "../data/levels.js";
+import { Ball } from "../entities/Ball.js";
 import { Projectile } from "../entities/Projectile.js";
 import { getBallElement } from "../data/ballElements.js";
 
@@ -66,6 +68,7 @@ export class Game {
     this.enemySystem = new EnemySystem();
     this.hazardSystem = new HazardSystem();
     this.particleSystem = new ParticleSystem();
+    this.pickupSystem = new PickupSystem();
     this.projectileSystem = new ProjectileSystem();
     this.rewardSystem = new RewardSystem();
     this.upgradeSystem = new UpgradeSystem();
@@ -127,6 +130,7 @@ export class Game {
       currentLevel: 1,
       lives: 3,
       runUpgrades: [],
+      temporaryUpgrades: [],
       coinsEarned: 0,
       pendingReward: null,
       startedAt: now,
@@ -232,8 +236,17 @@ export class Game {
     this.setMode("playing");
   }
 
-  calculateStats() {
-    const stats = this.upgradeSystem.applyToStats(BASE_STATS, this.activeRun?.runUpgrades || []);
+  calculateStats({ includeStaged = false } = {}) {
+    const staged = includeStaged ? this.level?.stagedRewards : null;
+    const runUpgrades = [
+      ...(this.activeRun?.runUpgrades || []),
+      ...(staged?.runUpgrades || []),
+    ];
+    const temporaryUpgrades = [
+      ...(this.activeRun?.temporaryUpgrades || []),
+      ...(staged?.temporaryUpgrades || []),
+    ];
+    const stats = this.upgradeSystem.applyToStats(BASE_STATS, runUpgrades, temporaryUpgrades);
     const levelNumber = this.activeRun?.currentLevel || 1;
     const assistRatio = getStarterAssistRatio(levelNumber);
 
@@ -285,6 +298,7 @@ export class Game {
     if (this.mode !== "playing" || !this.level) return;
     this.projectileSystem.update(this, delta);
     if (this.mode !== "playing" || !this.level) return;
+    this.pickupSystem.update(this, delta);
 
     for (const ball of this.level.balls) {
       ball.age += delta;
@@ -335,6 +349,167 @@ export class Game {
     this.level.projectiles = [];
     this.respawnBalls();
     this.persist();
+  }
+
+  handleDestroyedTarget(target) {
+    if (target.kind === "brick" && target.reward) {
+      this.rewardSystem.spawnPickupFromBrick(this, target);
+    }
+  }
+
+  collectPickup(pickup) {
+    if (!pickup || pickup.collected) return;
+    pickup.collected = true;
+    pickup.active = false;
+    this.applyReward(pickup.reward, { immediate: true, stageForCommit: true });
+    this.particleSystem.hit(this.level, pickup.x, pickup.y, "rgba(255, 232, 150, 0.95)");
+    this.audio.play("select");
+  }
+
+  autoCollectPendingPickups() {
+    if (!this.level?.pickups) return;
+    for (const pickup of this.level.pickups) {
+      if (pickup.collected) continue;
+      if (pickup.active || pickup.collectOnClear) {
+        this.collectPickup(pickup);
+      }
+    }
+    this.level.pickups = this.level.pickups.filter((pickup) => !pickup.collected);
+  }
+
+  applyReward(reward, { immediate = false, stageForCommit = false, commitNow = false } = {}) {
+    if (!reward) return;
+
+    if (reward.kind === "currency") {
+      this.addCoins(reward.amount || 0, commitNow);
+      return;
+    }
+
+    if (reward.kind === "permanentUpgrade") {
+      if (commitNow) {
+        this.addPermanentUpgrade(reward.permanentId || reward.id);
+      } else if (stageForCommit && this.level) {
+        this.level.stagedRewards.permanentUpgrades.push(reward.permanentId || reward.id);
+      }
+      return;
+    }
+
+    if (reward.kind === "runUpgrade") {
+      const upgradeId = reward.upgradeId;
+      const selected = [
+        ...(this.activeRun?.runUpgrades || []),
+        ...(this.level?.stagedRewards?.runUpgrades || []),
+      ];
+      if (!this.upgradeSystem.canTakeUpgrade(upgradeId, selected)) {
+        this.addCoins(25, commitNow);
+        return;
+      }
+      if (commitNow) {
+        this.activeRun.runUpgrades.push(upgradeId);
+      } else if (stageForCommit && this.level) {
+        this.level.stagedRewards.runUpgrades.push(upgradeId);
+      }
+      if (immediate) {
+        this.applyCurrentLevelStats();
+      }
+      return;
+    }
+
+    if (reward.kind === "temporaryUpgrade" || reward.kind === "instant") {
+      const duration = Math.max(0, reward.durationLevels ?? (reward.kind === "instant" ? 0 : 1));
+      const entry = {
+        id: reward.id,
+        label: reward.label || reward.id,
+        remainingLevels: commitNow ? duration : Math.max(0, duration - 1),
+        statModifiers: { ...(reward.statModifiers || {}) },
+      };
+      if (commitNow) {
+        this.activeRun.temporaryUpgrades.push(entry);
+      } else if (stageForCommit && this.level) {
+        this.level.stagedRewards.temporaryUpgrades.push(entry);
+      }
+      if (immediate) {
+        this.applyCurrentLevelStats();
+      }
+    }
+  }
+
+  addCoins(amount, commitNow) {
+    const coins = Math.max(0, Math.round(amount || 0));
+    if (coins <= 0) return;
+    if (commitNow || !this.level) {
+      this.profile.coins += coins;
+      this.activeRun.coinsEarned += coins;
+      return;
+    }
+    this.level.stagedRewards.coins += coins;
+  }
+
+  addPermanentUpgrade(permanentId) {
+    if (!permanentId) return;
+    this.profile.permanentUpgrades[permanentId] = (this.profile.permanentUpgrades[permanentId] || 0) + 1;
+  }
+
+  applyCurrentLevelStats() {
+    if (!this.level) return;
+    const previousStats = this.stats;
+    this.stats = this.calculateStats({ includeStaged: true });
+    const paddle = this.level.paddle;
+    paddle.width = this.stats.paddleWidth;
+    paddle.speed = this.stats.paddleSpeed;
+    paddle.cannonEnabled = this.stats.cannonEnabled || false;
+    paddle.cannonCooldownDuration = this.stats.cannonCooldown || paddle.cannonCooldownDuration;
+    paddle.cannonProjectileCount = this.stats.cannonProjectileCount || paddle.cannonProjectileCount;
+    paddle.cannonDamageMultiplier = this.stats.cannonDamageMultiplier || paddle.cannonDamageMultiplier;
+
+    const shieldGain = Math.max(0, (this.stats.shieldSaves || 0) - (previousStats.shieldSaves || 0));
+    this.levelShieldCharges += shieldGain;
+
+    for (const ball of this.level.balls) {
+      if (!ball.active) continue;
+      ball.speed = this.stats.ballSpeed;
+      ball.damage = this.stats.ballDamage;
+      ball.critChance = this.stats.critChance;
+      ball.critDamage = this.stats.critDamage;
+      ball.element = this.stats.element;
+      ball.elements = [...this.stats.activeElements];
+      ball.pierceChance = this.stats.pierceChance;
+      ball.radius = this.stats.ballRadius;
+      if (ball.stuckToPaddle) {
+        ball.stickTo(paddle);
+      }
+    }
+
+    const activeBallCount = this.level.balls.filter((ball) => ball.active).length;
+    const missing = Math.max(0, this.stats.ballCount - activeBallCount);
+    if (missing > 0) {
+      this.spawnBonusBalls(missing);
+    }
+  }
+
+  spawnBonusBalls(count) {
+    const paddle = this.level.paddle;
+    for (let index = 0; index < count; index += 1) {
+      const ball = new Ball({
+        x: paddle.x,
+        y: paddle.y - paddle.height / 2 - this.stats.ballRadius - 1,
+        radius: this.stats.ballRadius,
+        speed: this.stats.ballSpeed,
+        damage: this.stats.ballDamage,
+        critChance: this.stats.critChance,
+        critDamage: this.stats.critDamage,
+        element: this.stats.element,
+        elements: this.stats.activeElements,
+        pierceChance: this.stats.pierceChance,
+      });
+      const offset = (index - (count - 1) / 2) * this.stats.ballRadius * 2.5;
+      ball.stickTo(paddle);
+      ball.x += offset;
+      if (this.level.hasLaunchedBalls) {
+        ball.launch(offset * 0.7);
+      }
+      this.level.balls.push(ball);
+    }
   }
 
   launchStuckBalls() {
@@ -429,7 +604,9 @@ export class Game {
 
   completeLevel() {
     const completedLevel = this.activeRun.currentLevel;
-    const reward = this.rewardSystem.grantLevelReward(this, completedLevel);
+    this.autoCollectPendingPickups();
+    this.decayCommittedTemporaryUpgrades();
+    this.commitStagedRewards();
     this.profile.highestLevelUnlocked = Math.max(
       this.profile.highestLevelUnlocked,
       Math.min(completedLevel + 1, CAMPAIGN_MAX_LEVEL),
@@ -450,18 +627,55 @@ export class Game {
       return;
     }
 
-    const choices = this.upgradeSystem.offerChoices({
+    const choices = this.rewardSystem.offerStageBonusChoices({
       seed: this.activeRun.seed,
       levelNumber: completedLevel,
-      runUpgrades: this.activeRun.runUpgrades,
     });
     this.activeRun.pendingReward = {
+      kind: "stageBonus",
       levelCompleted: completedLevel,
-      coins: reward.coins,
       choices,
     };
     this.persist();
     this.setMode("upgradeSelect");
+  }
+
+  decayCommittedTemporaryUpgrades() {
+    this.activeRun.temporaryUpgrades = (this.activeRun.temporaryUpgrades || [])
+      .map((upgrade) => ({
+        ...upgrade,
+        remainingLevels: Math.max(0, (upgrade.remainingLevels || 0) - 1),
+      }))
+      .filter((upgrade) => upgrade.remainingLevels > 0);
+  }
+
+  commitStagedRewards() {
+    const staged = this.level?.stagedRewards;
+    if (!staged) return;
+
+    for (const upgradeId of staged.runUpgrades) {
+      if (this.upgradeSystem.canTakeUpgrade(upgradeId, this.activeRun.runUpgrades)) {
+        this.activeRun.runUpgrades.push(upgradeId);
+      }
+    }
+
+    this.activeRun.temporaryUpgrades.push(
+      ...staged.temporaryUpgrades
+        .filter((upgrade) => (upgrade.remainingLevels || 0) > 0)
+        .map((upgrade) => ({
+          ...upgrade,
+          statModifiers: { ...(upgrade.statModifiers || {}) },
+        })),
+    );
+
+    for (const permanentId of staged.permanentUpgrades) {
+      this.addPermanentUpgrade(permanentId);
+    }
+
+    if (staged.coins > 0) {
+      this.profile.coins += staged.coins;
+      this.activeRun.coinsEarned += staged.coins;
+    }
   }
 
   handleUpgradeInput() {
@@ -475,9 +689,16 @@ export class Game {
 
   chooseUpgrade(upgradeId) {
     const pending = this.activeRun?.pendingReward;
-    const allowed = pending?.choices?.some((choice) => choice.id === upgradeId);
+    const choice = pending?.choices?.find((item) => item.id === upgradeId);
+    const allowed = Boolean(choice);
     if (!pending || !allowed) return;
-    this.activeRun.runUpgrades.push(upgradeId);
+
+    if (pending.kind === "stageBonus" || choice.kind) {
+      this.applyReward(choice, { commitNow: true });
+    } else {
+      this.activeRun.runUpgrades.push(upgradeId);
+    }
+
     this.activeRun.currentLevel = Math.min(pending.levelCompleted + 1, CAMPAIGN_MAX_LEVEL);
     this.activeRun.pendingReward = null;
     this.persist();

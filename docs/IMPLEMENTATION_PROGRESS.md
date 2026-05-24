@@ -816,3 +816,55 @@ Defaults documented:
 - The `3x` boss HP pass is the first conservative implementation. If bosses still melt too fast, test a higher multiplier in a follow-up balance pass.
 - Repeatable fallback upgrades are only offered when the normal upgrade pool is exhausted.
 - Fresh manual playtesting should target Level 55+ to confirm the previous Level 51 blocker is gone.
+
+## Step 25 - v0.24 Reward Blocks and Falling Pickups
+
+Status: Complete
+
+Completed:
+- Added reward metadata to normal bricks so levels can contain visible reward blocks without changing the collision contract.
+- Added reward definitions for instant, run, temporary, permanent, currency, and smaller stage-clear bonus rewards.
+- Added falling pickup entities, pickup collision, mild magnetism for valuable pickups, and pickup rendering/debug support.
+- Spawned pickups when reward bricks are destroyed by balls, cannon projectiles, chain damage, or status ticks.
+- Added staged reward state on levels so in-level pickups affect the current attempt immediately but only commit to the active run/profile when the level clears.
+- Added auto-collect for active falling pickups on level clear, with permanent pickups also eligible for clear-time collection.
+- Reworked level completion so durable pickup rewards commit on clear, then the player chooses a smaller stage-clear bonus.
+- Added temporary upgrade duration support in active runs and stat calculation.
+- Added reward blocks to authored/generated levels and boss arenas, while keeping all reward blocks required for clear for this first pass.
+- Bumped the visible build version to `0.24.0`.
+
+Files changed:
+- `VERSION`
+- `README.md`
+- `src/core/Game.js`
+- `src/core/Debug.js`
+- `src/core/Renderer.js`
+- `src/data/levels.js`
+- `src/data/rewardDrops.js`
+- `src/data/version.js`
+- `src/entities/Brick.js`
+- `src/entities/Pickup.js`
+- `src/systems/ElementSystem.js`
+- `src/systems/LevelSystem.js`
+- `src/systems/PickupSystem.js`
+- `src/systems/RewardSystem.js`
+- `src/systems/SaveSystem.js`
+- `src/systems/UpgradeSystem.js`
+- `src/ui/HUD.js`
+- `src/ui/ScreenManager.js`
+- `src/ui/UpgradeCards.js`
+- `docs/V0.24_REWARD_BLOCK_PLAN.md`
+- `docs/IMPLEMENTATION_PROGRESS.md`
+
+Verification:
+- Ran JavaScript syntax checks across all `src/**/*.js` modules and `tools/playtest-headed.mjs`.
+- Validated generated definitions for Levels 1-100 with a fixed seed; all passed after reward blocks were attached.
+- Confirmed root `VERSION` matches imported `APP_VERSION` at `0.24.0`.
+- Ran module-level reward flow checks for instant ball pickups, staged run upgrades, temporary multiball duration, permanent auto-collect on clear, and stage-clear bonus advancement.
+- Ran a Chromium/Playwright browser smoke check against local static hosting with `?debug=1`, confirming `v0.24.0`, reward pickup spawning, pickup catch adding a ball, committed run upgrades staying unchanged before clear, stage bonus generation, next-level advancement after bonus selection, nonblank Canvas rendering, and no runtime page errors.
+- Ran `git diff --check`.
+
+Defaults documented:
+- Mid-level pickup rewards are checkpointed: quitting before clear reloads the last committed loadout.
+- Temporary rewards include the current level, then commit only remaining future-level duration.
+- Stage-clear bonuses are intentionally smaller than in-level reward blocks.

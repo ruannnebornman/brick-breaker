@@ -16,6 +16,11 @@ import {
   getBrickHealth,
   getSpecialBrickChance,
 } from "./scaling.js";
+import {
+  cloneReward,
+  createRewardForLevelSlot,
+  getRewardBlockCount,
+} from "./rewardDrops.js";
 
 export { CAMPAIGN_MAX_LEVEL, FIRST_GENERATED_LEVEL };
 
@@ -103,7 +108,7 @@ export function getLevelDefinition(levelNumber, runSeed = 1) {
   const safeLevel = clampLevel(levelNumber);
   const authored = AUTHORED_LEVELS.find((level) => level.levelNumber === safeLevel);
   if (authored) {
-    return cloneDefinition(authored);
+    return attachRewardBlocks(cloneDefinition(authored), runSeed);
   }
 
   const boss = getBossDefinition(safeLevel);
@@ -111,7 +116,7 @@ export function getLevelDefinition(levelNumber, runSeed = 1) {
     return createBossLevel(boss, runSeed);
   }
 
-  const generated = generateCampaignLevel(safeLevel, runSeed);
+  const generated = attachRewardBlocks(generateCampaignLevel(safeLevel, runSeed), runSeed);
   const validation = validateLevelDefinition(generated);
   if (validation.valid) {
     return generated;
@@ -366,9 +371,10 @@ function createFallbackLevel(levelNumber, runSeed, errors) {
 }
 
 function createBossLevel(boss, runSeed) {
+  const seed = levelSeed(runSeed, boss.level);
   return {
     levelNumber: boss.level,
-    seed: levelSeed(runSeed, boss.level),
+    seed,
     seedOffset: boss.level * 101,
     biomeId: boss.biomeId,
     isBossLevel: true,
@@ -376,7 +382,7 @@ function createBossLevel(boss, runSeed) {
     layoutPattern: boss.id,
     visualVariant: boss.visualVariant || "default",
     generated: true,
-    bricks: [],
+    bricks: createBossRewardBricks(boss, seed),
     enemies: [],
     hazards: [],
     boss: {
@@ -384,6 +390,27 @@ function createBossLevel(boss, runSeed) {
       hp: boss.baseHp,
     },
   };
+}
+
+function createBossRewardBricks(boss, seed) {
+  const count = getRewardBlockCount(boss.level, { isBossLevel: true });
+  if (count <= 0) return [];
+  const slots = [
+    { x: 338, y: 252 },
+    { x: 506, y: 252 },
+  ];
+  return slots.slice(0, count).map((slot, index) => ({
+    type: "basic",
+    x: slot.x,
+    y: slot.y,
+    width: 116,
+    height: 34,
+    hp: 18 + Math.floor(boss.level / 10) * 3,
+    armor: Math.floor(boss.level / 30),
+    requiredForClear: true,
+    palette: { fill: "#6c5f3f", accent: "#ffe896" },
+    reward: createRewardForLevelSlot(boss.level, index, seed, { isBossLevel: true }),
+  }));
 }
 
 function createGeneratedEnemies(levelNumber, rng) {
@@ -466,6 +493,38 @@ function createGeneratedBrick({ typeId, x, y, width, height, levelNumber, biome,
   };
 }
 
+function attachRewardBlocks(definition, runSeed) {
+  const rewardCount = getRewardBlockCount(definition.levelNumber, {
+    isBossLevel: definition.isBossLevel === true,
+  });
+  if (rewardCount <= 0 || definition.bricks.length === 0) return definition;
+
+  const seed = definition.seed || levelSeed(runSeed, definition.levelNumber);
+  const rng = new Random((seed + 0x51f15e) >>> 0);
+  const requiredIndices = definition.bricks
+    .map((brick, index) => ({ brick, index }))
+    .filter(({ brick }) => brick.requiredForClear !== false)
+    .map(({ index }) => index);
+  const shuffled = shuffle(requiredIndices, rng).slice(0, rewardCount);
+  const rewardIndices = new Set(shuffled);
+  let slot = 0;
+
+  return {
+    ...definition,
+    bricks: definition.bricks.map((brick, index) => {
+      if (!rewardIndices.has(index)) return brick;
+      const reward = createRewardForLevelSlot(definition.levelNumber, slot, seed, {
+        isBossLevel: definition.isBossLevel === true,
+      });
+      slot += 1;
+      return {
+        ...brick,
+        reward: cloneReward(reward),
+      };
+    }),
+  };
+}
+
 function getBrickPalette(typeId, patternId, biome = BIOMES.grasslands_training_ruins) {
   const biomePalette = biome.palette || BIOMES.grasslands_training_ruins.palette;
   if (typeId === "armored") {
@@ -509,6 +568,7 @@ function cloneDefinition(definition) {
     bricks: definition.bricks.map((brick) => ({
       ...brick,
       palette: brick.palette ? { ...brick.palette } : undefined,
+      reward: cloneReward(brick.reward),
     })),
     enemies: (definition.enemies || []).map((enemy) => ({ ...enemy })),
     hazards: (definition.hazards || []).map((hazard) => ({ ...hazard })),

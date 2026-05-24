@@ -51,12 +51,15 @@ export class LevelSystem {
       boss: definition.boss ? new Boss(definition.boss) : null,
       enemies,
       hazards,
+      pickups: [],
       projectiles: [],
       particles: [],
       floatingTexts: [],
       nextBrickId: bricks.length + 1,
       nextProjectileId: 1,
+      nextPickupId: 1,
       hasLaunchedBalls: false,
+      stagedRewards: createEmptyStagedRewards(),
       elapsed: 0,
       completed: false,
     };
@@ -68,4 +71,13 @@ export class LevelSystem {
     const bossCleared = !level.boss || !level.boss.requiredForClear || !level.boss.active;
     return requiredBricksCleared && requiredEnemiesCleared && bossCleared;
   }
+}
+
+function createEmptyStagedRewards() {
+  return {
+    runUpgrades: [],
+    temporaryUpgrades: [],
+    permanentUpgrades: [],
+    coins: 0,
+  };
 }

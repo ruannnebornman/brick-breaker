@@ -29,6 +29,7 @@ export class Debug {
       `bricks ${game.level?.bricks.filter((brick) => brick.active).length ?? 0}`,
       `enemies ${game.level?.enemies?.filter((enemy) => enemy.active).length ?? 0}`,
       `hazards ${game.level?.hazards?.filter((hazard) => hazard.active).length ?? 0}`,
+      `pickups ${game.level?.pickups?.filter((pickup) => pickup.active).length ?? 0}`,
       `projectiles ${game.level?.projectiles?.filter((projectile) => projectile.active).length ?? 0}`,
       `boss ${game.level?.boss?.active ? Math.ceil(game.level.boss.hp) : "-"}`,
     ];
@@ -89,6 +90,13 @@ export class Debug {
       if (!projectile.active) continue;
       ctx.beginPath();
       ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(255, 232, 150, 0.85)";
+    for (const pickup of game.level.pickups || []) {
+      if (!pickup.active) continue;
+      ctx.beginPath();
+      ctx.arc(pickup.x, pickup.y, pickup.radius, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
