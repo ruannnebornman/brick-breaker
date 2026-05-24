@@ -12,12 +12,17 @@ export class RewardSystem {
     return reward;
   }
 
-  offerStageBonusChoices({ seed, levelNumber }) {
-    return createStageBonusChoices({ seed, levelNumber }).map((choice) => ({
+  offerStageBonusChoices({ seed, levelNumber, permanentAlreadyEarned = false, profilePermanentUpgrades = {} }) {
+    return createStageBonusChoices({
+      seed,
+      levelNumber,
+      permanentAlreadyEarned,
+      profilePermanentUpgrades,
+    }).map((choice) => ({
       ...cloneReward(choice),
       name: choice.label,
-      stack: null,
-      maxStacks: null,
+      stack: choice.stack ?? null,
+      maxStacks: choice.maxStacks ?? null,
     }));
   }
 

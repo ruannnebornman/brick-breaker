@@ -1,4 +1,5 @@
 import { Random } from "../core/Random.js";
+import { getPermanentUpgrade } from "../data/permanentUpgrades.js";
 import { RUN_UPGRADES } from "../data/upgrades.js";
 
 export class UpgradeSystem {
@@ -14,7 +15,7 @@ export class UpgradeSystem {
     }, {});
   }
 
-  applyToStats(baseStats, runUpgrades = [], temporaryUpgrades = []) {
+  applyToStats(baseStats, runUpgrades = [], temporaryUpgrades = [], permanentUpgrades = {}) {
     const stats = {
       ...baseStats,
       ballCount: 2,
@@ -29,6 +30,14 @@ export class UpgradeSystem {
       cannonDamageMultiplier: baseStats.cannonDamageMultiplier,
       activeElements: [],
     };
+
+    for (const [upgradeId, count] of Object.entries(permanentUpgrades || {})) {
+      const upgrade = getPermanentUpgrade(upgradeId);
+      if (!upgrade) continue;
+      const stacks = Math.max(0, Math.min(Number(count) || 0, upgrade.maxStacks || 0));
+      applyStackedModifiers(stats, upgrade.statModifiers || {}, stacks);
+    }
+
     for (const id of runUpgrades) {
       const upgrade = this.byId.get(id);
       if (!upgrade) continue;
@@ -148,4 +157,13 @@ function applyModifiers(stats, mods) {
       stats.activeElements.push(mods.element);
     }
   }
+}
+
+function applyStackedModifiers(stats, mods, stacks) {
+  if (stacks <= 0) return;
+  const scaled = {};
+  for (const [key, value] of Object.entries(mods)) {
+    scaled[key] = typeof value === "number" ? value * stacks : value;
+  }
+  applyModifiers(stats, scaled);
 }

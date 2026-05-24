@@ -497,9 +497,18 @@ function attachRewardBlocks(definition, runSeed) {
   const rewardCount = getRewardBlockCount(definition.levelNumber, {
     isBossLevel: definition.isBossLevel === true,
   });
-  if (rewardCount <= 0 || definition.bricks.length === 0) return definition;
+  if (rewardCount <= 0) return definition;
 
   const seed = definition.seed || levelSeed(runSeed, definition.levelNumber);
+  if (definition.bricks.length === 0 && definition.boss) {
+    return {
+      ...definition,
+      bricks: createBossCacheRewardBricks(definition.levelNumber, rewardCount, seed),
+    };
+  }
+
+  if (definition.bricks.length === 0) return definition;
+
   const rng = new Random((seed + 0x51f15e) >>> 0);
   const requiredIndices = definition.bricks
     .map((brick, index) => ({ brick, index }))
@@ -523,6 +532,25 @@ function attachRewardBlocks(definition, runSeed) {
       };
     }),
   };
+}
+
+function createBossCacheRewardBricks(levelNumber, rewardCount, seed) {
+  const slots = [
+    { x: 338, y: 252 },
+    { x: 506, y: 252 },
+  ];
+  return slots.slice(0, rewardCount).map((slot, index) => ({
+    type: "basic",
+    x: slot.x,
+    y: slot.y,
+    width: 116,
+    height: 34,
+    hp: 14 + Math.floor(levelNumber / 10) * 3,
+    armor: Math.floor(levelNumber / 30),
+    requiredForClear: true,
+    palette: { fill: "#6c5f3f", accent: "#ffe896" },
+    reward: cloneReward(createRewardForLevelSlot(levelNumber, index, seed, { isBossLevel: true })),
+  }));
 }
 
 function getBrickPalette(typeId, patternId, biome = BIOMES.grasslands_training_ruins) {

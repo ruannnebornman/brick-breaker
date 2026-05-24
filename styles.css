@@ -125,6 +125,148 @@ button:disabled {
   background: rgba(9, 20, 17, 0.56);
 }
 
+.heart-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  min-width: 4.2rem;
+}
+
+.heart {
+  display: inline-block;
+  color: rgba(255, 126, 97, 0.95);
+  font-size: 1rem;
+  line-height: 1;
+  text-shadow: 0 0 10px rgba(255, 126, 97, 0.35);
+}
+
+.heart--empty {
+  color: rgba(173, 199, 179, 0.32);
+  text-shadow: none;
+}
+
+.heart-row--hit .heart--full {
+  animation: heart-hit 260ms ease-out;
+}
+
+@keyframes heart-hit {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.32);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.cannon-indicator {
+  border-color: rgba(186, 213, 255, 0.28);
+  color: rgba(238, 248, 234, 0.78);
+}
+
+.cannon-indicator--ready {
+  border-color: rgba(230, 193, 91, 0.72);
+  background: rgba(79, 57, 17, 0.68);
+  color: #fff2ba;
+  box-shadow: 0 0 18px rgba(230, 193, 91, 0.18);
+}
+
+.cannon-indicator--locked,
+.cannon-indicator--cooldown {
+  border-color: rgba(186, 213, 255, 0.24);
+  background: rgba(19, 31, 46, 0.58);
+}
+
+.cannon-indicator--none {
+  opacity: 0.58;
+}
+
+.reward-rails {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.reward-rail {
+  position: absolute;
+  top: 7.1rem;
+  display: grid;
+  gap: 0.35rem;
+  width: 8.4rem;
+  max-height: 22rem;
+  padding: 0.55rem;
+  border: 1px solid rgba(221, 244, 200, 0.18);
+  border-radius: 8px;
+  background: rgba(5, 12, 10, 0.48);
+  color: var(--text);
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+}
+
+.reward-rail--permanent {
+  left: 0.75rem;
+  border-color: rgba(255, 246, 206, 0.3);
+}
+
+.reward-rail--temporary {
+  right: 0.75rem;
+  border-color: rgba(105, 151, 255, 0.3);
+}
+
+.reward-rail strong {
+  color: var(--accent-2);
+  font-size: 0.74rem;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.reward-rail-item {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  gap: 0.28rem;
+  align-items: center;
+  min-height: 1.65rem;
+  padding: 0.25rem 0.3rem;
+  border: 1px solid rgba(221, 244, 200, 0.12);
+  border-radius: 6px;
+  background: rgba(13, 29, 24, 0.56);
+  font-size: 0.76rem;
+}
+
+.reward-rail-item b {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: rgba(230, 193, 91, 0.18);
+  color: #fff2ba;
+  font-size: 0.68rem;
+}
+
+.reward-rail--temporary .reward-rail-item b {
+  background: rgba(105, 151, 255, 0.2);
+  color: #d5e4ff;
+}
+
+.reward-rail-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reward-rail-item em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.reward-rail-empty {
+  color: rgba(238, 248, 234, 0.52);
+  font-size: 0.76rem;
+}
+
 .boss-hud {
   position: absolute;
   left: 50%;
@@ -211,6 +353,22 @@ button:disabled {
   margin: 0.55rem 0 1.2rem;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.reward-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: -0.25rem 0 0.95rem;
+}
+
+.reward-summary span {
+  padding: 0.3rem 0.48rem;
+  border: 1px solid rgba(230, 193, 91, 0.28);
+  border-radius: 999px;
+  background: rgba(6, 16, 14, 0.42);
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .button-stack {

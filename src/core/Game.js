@@ -13,9 +13,10 @@ import { CAMPAIGN_MAX_LEVEL } from "../data/levels.js";
 import { Ball } from "../entities/Ball.js";
 import { Projectile } from "../entities/Projectile.js";
 import { getBallElement } from "../data/ballElements.js";
+import { getRewardStyle } from "../data/rewardDrops.js";
 
 const BASE_STATS = {
-  paddleWidth: 120,
+  paddleWidth: 80,
   paddleSpeed: 650,
   ballRadius: 9,
   ballSpeed: 520,
@@ -39,7 +40,7 @@ const STARTER_ASSIST = {
   generatedStartLevel: 6,
   generatedEndLevel: 18,
   generatedAssistRatio: 0.7,
-  paddleWidthBonus: 140,
+  paddleWidthBonus: 93,
   ballSpeedBonus: 90,
   ballMinSpeedBonus: 70,
   ballRadiusBonus: 2,
@@ -78,6 +79,7 @@ export class Game {
     this.levelShieldCharges = 0;
     this.lastRunSummary = null;
     this.hitEventBudget = { secondary: 0, maxSecondary: BASE_STATS.maxSecondaryHitEvents };
+    this.hitFeedback = null;
   }
 
   boot() {
@@ -92,6 +94,7 @@ export class Game {
   update(delta) {
     this.elapsed += delta;
     this.debug.update(delta);
+    this.updateHitFeedback(delta);
 
     if (!this.input.isFormFocused()) {
       if (this.mode === "playing" && this.input.consumePressed("Escape")) {
@@ -246,7 +249,12 @@ export class Game {
       ...(this.activeRun?.temporaryUpgrades || []),
       ...(staged?.temporaryUpgrades || []),
     ];
-    const stats = this.upgradeSystem.applyToStats(BASE_STATS, runUpgrades, temporaryUpgrades);
+    const stats = this.upgradeSystem.applyToStats(
+      BASE_STATS,
+      runUpgrades,
+      temporaryUpgrades,
+      this.profile?.permanentUpgrades || {},
+    );
     const levelNumber = this.activeRun?.currentLevel || 1;
     const assistRatio = getStarterAssistRatio(levelNumber);
 
@@ -280,14 +288,11 @@ export class Game {
     this.resetHitEventBudget();
     this.level.paddle.update(delta, this.input, this.settings);
 
-    const launchRequested = !this.input.isFormFocused() && (
-      this.input.consumePressed("Space") ||
-      this.input.consumePointerPress()
-    );
+    const launchRequested = !this.input.isFormFocused() && this.input.consumePointerPress();
     if (launchRequested) {
       this.launchStuckBalls();
     }
-    if (!this.input.isFormFocused() && this.input.consumePressed("KeyF")) {
+    if (!this.input.isFormFocused() && this.input.consumePressed("Space")) {
       this.fireCannon();
     }
 
@@ -335,6 +340,7 @@ export class Game {
     if (this.levelShieldCharges > 0) {
       this.levelShieldCharges -= 1;
       this.level.projectiles = [];
+      this.triggerDefenseFeedback("shield");
       this.respawnBalls();
       this.persist();
       return;
@@ -342,11 +348,13 @@ export class Game {
 
     this.activeRun.lives -= source.damage ?? 1;
     if (this.activeRun.lives <= 0) {
+      this.triggerDefenseFeedback("life");
       this.gameOver();
       return;
     }
 
     this.level.projectiles = [];
+    this.triggerDefenseFeedback("life");
     this.respawnBalls();
     this.persist();
   }
@@ -357,24 +365,92 @@ export class Game {
     }
   }
 
-  collectPickup(pickup) {
+  collectPickup(pickup, { auto = false, suppressText = false } = {}) {
     if (!pickup || pickup.collected) return;
     pickup.collected = true;
     pickup.active = false;
     this.applyReward(pickup.reward, { immediate: true, stageForCommit: true });
+    const entry = this.logCollectedReward(pickup.reward, { auto });
+    if (!suppressText && entry) {
+      this.showRewardText(entry.text, {
+        x: this.level?.paddle?.x ?? pickup.x,
+        y: this.level?.paddle ? this.level.paddle.y - 34 : pickup.y,
+        color: entry.color,
+      });
+    }
     this.particleSystem.hit(this.level, pickup.x, pickup.y, "rgba(255, 232, 150, 0.95)");
     this.audio.play("select");
+    return entry;
   }
 
   autoCollectPendingPickups() {
     if (!this.level?.pickups) return;
+    const entries = [];
     for (const pickup of this.level.pickups) {
       if (pickup.collected) continue;
       if (pickup.active || pickup.collectOnClear) {
-        this.collectPickup(pickup);
+        const entry = this.collectPickup(pickup, { auto: true, suppressText: true });
+        if (entry) entries.push(entry);
       }
     }
     this.level.pickups = this.level.pickups.filter((pickup) => !pickup.collected);
+    this.showAutoCollectText(entries);
+  }
+
+  logCollectedReward(reward, { auto = false } = {}) {
+    if (!reward || !this.level) return null;
+    const style = getRewardStyle(reward);
+    const entry = {
+      kind: reward.kind,
+      label: reward.label || reward.name || reward.id,
+      text: formatRewardText(reward, { auto }),
+      color: style.stroke,
+      auto,
+    };
+    this.level.collectedRewardLog.push(entry);
+    return entry;
+  }
+
+  showRewardText(text, { x, y, color, delay = 0 } = {}) {
+    if (!this.level || !text) return;
+    this.particleSystem.floatingText(this.level, {
+      x: x ?? this.level.paddle.x,
+      y: y ?? this.level.paddle.y - 34,
+      text,
+      color,
+      delay,
+    });
+  }
+
+  showAutoCollectText(entries) {
+    if (!entries?.length || !this.level) return;
+    const x = this.level.paddle.x;
+    const y = this.level.paddle.y - 48;
+    if (entries.length <= 2) {
+      entries.forEach((entry, index) => {
+        this.showRewardText(entry.text, {
+          x,
+          y: y - index * 22,
+          color: entry.color,
+          delay: index * 0.18,
+        });
+      });
+      return;
+    }
+
+    this.showRewardText(`Auto-collected: ${entries.length} rewards`, {
+      x,
+      y,
+      color: "rgba(255, 255, 255, 0.95)",
+    });
+    entries.slice(0, 3).forEach((entry, index) => {
+      this.showRewardText(entry.text.replace("Auto: ", ""), {
+        x,
+        y: y - 24 - index * 22,
+        color: entry.color,
+        delay: 0.18 + index * 0.16,
+      });
+    });
   }
 
   applyReward(reward, { immediate = false, stageForCommit = false, commitNow = false } = {}) {
@@ -401,7 +477,7 @@ export class Game {
         ...(this.level?.stagedRewards?.runUpgrades || []),
       ];
       if (!this.upgradeSystem.canTakeUpgrade(upgradeId, selected)) {
-        this.addCoins(25, commitNow);
+        this.applyReward(createDuplicateRunFallbackReward(), { immediate, stageForCommit, commitNow });
         return;
       }
       if (commitNow) {
@@ -578,18 +654,47 @@ export class Game {
 
     if (this.levelShieldCharges > 0) {
       this.levelShieldCharges -= 1;
+      this.triggerDefenseFeedback("shield");
       this.respawnBalls();
       return;
     }
 
     this.activeRun.lives -= 1;
     if (this.activeRun.lives <= 0) {
+      this.triggerDefenseFeedback("life");
       this.gameOver();
       return;
     }
 
+    this.triggerDefenseFeedback("life");
     this.respawnBalls();
     this.persist();
+  }
+
+  updateHitFeedback(delta) {
+    if (!this.hitFeedback) return;
+    this.hitFeedback.life -= delta;
+    if (this.hitFeedback.life <= 0) {
+      this.hitFeedback = null;
+    }
+  }
+
+  triggerDefenseFeedback(kind) {
+    if (!this.level) return;
+    const color = kind === "shield" ? "rgba(134, 215, 255, 0.95)" : "rgba(255, 126, 97, 0.95)";
+    const text = kind === "shield" ? "Shield Shattered" : "Heart Lost";
+    this.hitFeedback = {
+      kind,
+      life: 0.58,
+      maxLife: 0.58,
+      color,
+    };
+    this.particleSystem.burst(this.level, this.level.paddle.x, this.level.paddle.y - 6, color);
+    this.showRewardText(text, {
+      x: this.level.paddle.x,
+      y: this.level.paddle.y - 42,
+      color,
+    });
   }
 
   respawnBalls() {
@@ -627,14 +732,20 @@ export class Game {
       return;
     }
 
+    const permanentEarnedThisLevel = (this.level?.stagedRewards?.permanentUpgrades || []).length > 0;
     const choices = this.rewardSystem.offerStageBonusChoices({
       seed: this.activeRun.seed,
       levelNumber: completedLevel,
+      permanentAlreadyEarned: permanentEarnedThisLevel,
+      profilePermanentUpgrades: this.profile.permanentUpgrades,
     });
+    const collectedSummary = summarizeCollectedRewards(this.level?.collectedRewardLog || []);
     this.activeRun.pendingReward = {
       kind: "stageBonus",
       levelCompleted: completedLevel,
       choices,
+      collectedSummary,
+      rewardMode: choices.some((choice) => choice.kind === "permanentUpgrade") ? "permanent" : "temporary",
     };
     this.persist();
     this.setMode("upgradeSelect");
@@ -735,6 +846,35 @@ export class Game {
     this.saveData.activeRun = this.activeRun;
     this.saveData = this.saveSystem.save(this.saveData);
   }
+}
+
+function createDuplicateRunFallbackReward() {
+  return {
+    kind: "temporaryUpgrade",
+    id: "fallback_temp_damage_2",
+    label: "+2 Damage",
+    durationLevels: 1,
+    statModifiers: { ballDamageAdd: 2 },
+  };
+}
+
+function formatRewardText(reward, { auto = false } = {}) {
+  const prefix = auto ? "Auto: " : "";
+  const label = reward.label || reward.name || reward.id;
+  if (reward.kind === "permanentUpgrade") return `${prefix}Permanent: ${label}`;
+  if (reward.kind === "runUpgrade") return `${prefix}Run: ${label}`;
+  if (reward.kind === "temporaryUpgrade") {
+    const duration = reward.durationLevels || 1;
+    return `${prefix}Temp: ${label} (${duration} ${duration === 1 ? "level" : "levels"})`;
+  }
+  if (reward.kind === "instant") return `${prefix}${label}`;
+  if (reward.kind === "currency") return `${prefix}${label}`;
+  return `${prefix}${label}`;
+}
+
+function summarizeCollectedRewards(entries) {
+  if (!entries?.length) return [];
+  return entries.slice(-6).map((entry) => entry.text.replace("Auto: ", ""));
 }
 
 function getStarterAssistRatio(levelNumber) {

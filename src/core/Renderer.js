@@ -34,6 +34,9 @@ export class Renderer {
     } else if (["mainMenu", "settings", "gameOver", "victory"].includes(game.mode)) {
       this.drawAttractScene(ctx, game);
     }
+    if (game.hitFeedback) {
+      this.drawHitFeedback(ctx, game.hitFeedback);
+    }
     if (game.debug.enabled) {
       game.debug.draw(ctx, game);
     }
@@ -134,6 +137,7 @@ export class Renderer {
     this.drawPaddle(ctx, level.paddle);
     this.drawParticles(ctx, level.particles, "spark");
     this.drawParticles(ctx, level.particles, "chip");
+    this.drawFloatingTexts(ctx, level.floatingTexts);
   }
 
   drawPaddle(ctx, paddle) {
@@ -465,15 +469,23 @@ export class Renderer {
       ctx.save();
       ctx.translate(pickup.x, pickup.y);
       ctx.shadowColor = style.glow;
-      ctx.shadowBlur = 16;
+      ctx.shadowBlur = pickup.reward?.kind === "permanentUpgrade" ? 24 : 16;
       ctx.fillStyle = style.fill;
       ctx.strokeStyle = style.stroke;
       ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, pickup.radius, 0, Math.PI * 2);
+      if (pickup.reward?.kind === "permanentUpgrade") {
+        ctx.rotate(Math.PI / 4);
+        roundedRect(ctx, -pickup.radius * 0.75, -pickup.radius * 0.75, pickup.radius * 1.5, pickup.radius * 1.5, 4);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, pickup.radius, 0, Math.PI * 2);
+      }
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.stroke();
+      if (pickup.reward?.kind === "permanentUpgrade") {
+        ctx.rotate(-Math.PI / 4);
+      }
       ctx.fillStyle = style.stroke;
       ctx.font = "bold 12px ui-sans-serif, system-ui, sans-serif";
       ctx.textAlign = "center";
@@ -507,6 +519,41 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  drawFloatingTexts(ctx, floatingTexts = []) {
+    for (const text of floatingTexts) {
+      if (text.delay > 0) continue;
+      const ratio = Math.max(0, text.life / text.maxLife);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, ratio * 1.25);
+      ctx.font = "700 16px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(4, 10, 8, 0.82)";
+      ctx.fillStyle = text.color;
+      ctx.shadowColor = text.color;
+      ctx.shadowBlur = 12;
+      ctx.strokeText(text.text, text.x, text.y);
+      ctx.fillText(text.text, text.x, text.y);
+      ctx.restore();
+    }
+  }
+
+  drawHitFeedback(ctx, feedback) {
+    const ratio = Math.max(0, feedback.life / feedback.maxLife);
+    ctx.save();
+    ctx.globalAlpha = ratio * 0.22;
+    ctx.fillStyle = feedback.kind === "shield"
+      ? "rgba(134, 215, 255, 0.9)"
+      : "rgba(255, 126, 97, 0.9)";
+    ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+    ctx.globalAlpha = ratio * 0.45;
+    ctx.strokeStyle = feedback.color;
+    ctx.lineWidth = 8;
+    ctx.strokeRect(24, 24, LOGICAL_WIDTH - 48, LOGICAL_HEIGHT - 48);
+    ctx.restore();
   }
 
   drawPlaceholderPaddle(ctx, x, y, width, height) {
@@ -573,15 +620,31 @@ export class Renderer {
     const radius = Math.min(brick.width, brick.height) * 0.28;
     ctx.save();
     ctx.shadowColor = style.glow;
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = brick.reward?.kind === "permanentUpgrade" ? 24 : 14;
     ctx.fillStyle = style.fill;
     ctx.strokeStyle = style.stroke;
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    if (brick.reward?.kind === "permanentUpgrade") {
+      ctx.translate(cx, cy);
+      ctx.rotate(Math.PI / 4);
+      roundedRect(ctx, -radius * 0.82, -radius * 0.82, radius * 1.64, radius * 1.64, 4);
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    }
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.stroke();
+    if (brick.reward?.kind === "permanentUpgrade") {
+      ctx.rotate(-Math.PI / 4);
+      ctx.translate(-cx, -cy);
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 1.22, 0, Math.PI * 2);
+    ctx.strokeStyle = style.glow;
+    ctx.globalAlpha = 0.5;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     ctx.fillStyle = style.stroke;
     ctx.font = "bold 11px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";

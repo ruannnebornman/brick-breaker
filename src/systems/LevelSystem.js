@@ -55,6 +55,7 @@ export class LevelSystem {
       projectiles: [],
       particles: [],
       floatingTexts: [],
+      collectedRewardLog: [],
       nextBrickId: bricks.length + 1,
       nextProjectileId: 1,
       nextPickupId: 1,

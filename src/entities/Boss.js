@@ -3,6 +3,7 @@ export class Boss {
     this.id = definition.id;
     this.kind = "boss";
     this.name = definition.name;
+    this.level = definition.level || 0;
     const hitbox = definition.hitbox || definition;
     this.x = hitbox.x;
     this.y = hitbox.y;

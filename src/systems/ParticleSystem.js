@@ -98,6 +98,20 @@ export class ParticleSystem {
     });
   }
 
+  floatingText(level, { x, y, text, color = "rgba(255, 255, 255, 0.95)", delay = 0 }) {
+    if (!level?.floatingTexts || !text) return;
+    level.floatingTexts.push({
+      x,
+      y,
+      text,
+      color,
+      delay,
+      life: 1.45,
+      maxLife: 1.45,
+      vy: -42,
+    });
+  }
+
   update(level, delta) {
     if (!level) return;
     for (const particle of level.particles) {
@@ -107,5 +121,17 @@ export class ParticleSystem {
       particle.life -= delta;
     }
     level.particles = level.particles.filter((particle) => particle.life > 0).slice(-220);
+
+    for (const text of level.floatingTexts || []) {
+      if (text.delay > 0) {
+        text.delay -= delta;
+        continue;
+      }
+      text.y += text.vy * delta;
+      text.life -= delta;
+    }
+    level.floatingTexts = (level.floatingTexts || [])
+      .filter((text) => text.delay > 0 || text.life > 0)
+      .slice(-18);
   }
 }

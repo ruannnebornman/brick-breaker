@@ -174,7 +174,7 @@ async function playFrame(page, state) {
   }
 
   if (state.cannonReady) {
-    await page.keyboard.press("KeyF");
+    await page.keyboard.press("Space");
   }
 }
 

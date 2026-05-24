@@ -4,6 +4,8 @@ Status: Scratchpad. These are ideas to revisit later, not approved implementatio
 
 ## Hearts Instead Of Lives
 
+Status: Promoted into v0.25.
+
 Idea:
 - Replace the plain `Lives 3` HUD text with heart icons.
 - Use full hearts for remaining lives and possibly cracked/empty hearts for lost lives.
@@ -17,6 +19,8 @@ Notes:
 - Shield charges should remain visually distinct from hearts.
 
 ## Animated Life Loss
+
+Status: Promoted into v0.25.
 
 Idea:
 - When the player loses a life, play a brief animation before the relaunch.
@@ -36,6 +40,8 @@ Important:
 - Keep the pause short. The game is fast, so this should clarify the moment without dragging the pace down.
 
 ## Boss Attack Frequency Reduction
+
+Status: Promoted into v0.25.
 
 Problem:
 - Bosses, especially Level 10, can attack too often and sometimes kill the run too early.
@@ -66,3 +72,27 @@ Acceptance feel:
 - Player understands what hit them.
 - A Level 10 death should feel like a mistake or low-resource run, not random projectile overload.
 - Bosses still matter, but they stop stealing attention from the core brick-breaker flow.
+
+## Cannon Controls And Readability
+
+Status: Promoted into v0.25.
+
+Idea:
+- Change the cannon fire input to `Space`.
+- Add a stronger indicator for whether the player has the cannon and whether it can currently be used.
+- Make the paddle one-third smaller as a balance pass.
+
+Why:
+- `Space` is the natural panic/action key and should feel better than a small UI button during fast play.
+- The cannon is powerful, so its ready/locked state needs to be obvious without the player hunting the HUD.
+- A smaller paddle should make positioning matter more now that multiball and reward scaling are getting stronger.
+
+Possible indicator treatments:
+- Add a cannon-ready icon near the paddle or lower HUD.
+- Use a clear charged/empty state with a cooldown fill.
+- Flash or pulse the cannon indicator briefly when it becomes ready.
+- Show a locked/inactive state before the player launches balls, so it is clear why it cannot fire yet.
+
+Balance notes:
+- Reducing the paddle by one-third is a large feel change, so test it alongside early permanent rewards and boss attack pacing.
+- If the game becomes too punishing, offset the smaller paddle with clearer shield feedback or earlier paddle-size upgrades.

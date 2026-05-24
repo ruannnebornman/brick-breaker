@@ -42,7 +42,7 @@ export class ScreenManager {
         <p class="panel-subtitle">Grasslands chapter prototype · ${CAMPAIGN_MAX_LEVEL} levels</p>
         <div class="save-summary">
           <span>Highest level: ${game.profile.highestLevelUnlocked}</span>
-          <span>Coins: ${game.profile.coins}</span>
+          <span>Permanent cores: ${countPermanentCores(game.profile.permanentUpgrades)}</span>
           <span>${run ? run.pendingReward ? `Reward ready after level ${run.pendingReward.levelCompleted}` : `Run level ${run.currentLevel}, lives ${run.lives}` : "No active run"}</span>
         </div>
         <div class="button-stack">
@@ -145,14 +145,26 @@ export class ScreenManager {
 
   renderUpgradeSelect(game) {
     const pending = game.activeRun?.pendingReward;
-    const title = pending?.kind === "stageBonus" ? "Stage Bonus" : "Choose Upgrade";
+    const title = pending?.kind === "stageBonus"
+      ? pending.rewardMode === "permanent" ? "Permanent Core" : "Temporary Boost"
+      : "Choose Upgrade";
     const subtitle = pending?.kind === "stageBonus"
-      ? `Level ${pending?.levelCompleted ?? 1} clear · choose a small bonus`
+      ? pending.rewardMode === "permanent"
+        ? `Level ${pending?.levelCompleted ?? 1} clear · second-chance permanent roll hit`
+        : `Level ${pending?.levelCompleted ?? 1} clear · choose a temporary boost`
       : `Level ${pending?.levelCompleted ?? 1} clear · +${pending?.coins ?? 0} coins`;
+    const collectedSummary = pending?.collectedSummary?.length
+      ? `
+        <div class="reward-summary" aria-label="Collected rewards">
+          ${pending.collectedSummary.map((item) => `<span>${item}</span>`).join("")}
+        </div>
+      `
+      : "";
     this.root.innerHTML = `
       <section class="overlay-panel upgrade-panel" role="dialog" aria-labelledby="upgradeTitle">
         <h2 id="upgradeTitle">${title}</h2>
         <p class="panel-subtitle">${subtitle}</p>
+        ${collectedSummary}
         ${renderUpgradeCards(pending?.choices || [])}
         <div class="secondary-row">
           <button data-action="menu">Main Menu</button>
@@ -170,7 +182,7 @@ export class ScreenManager {
     this.root.innerHTML = `
       <section class="overlay-panel" role="dialog" aria-labelledby="gameOverTitle">
         <h2 id="gameOverTitle">Game Over</h2>
-        <p class="panel-subtitle">Reached level ${summary?.reachedLevel ?? 1} · ${summary?.coinsEarned ?? 0} coins earned</p>
+        <p class="panel-subtitle">Reached level ${summary?.reachedLevel ?? 1}</p>
         <div class="button-stack">
           <button data-action="new">New Run</button>
           <button data-action="menu">Main Menu</button>
@@ -185,7 +197,7 @@ export class ScreenManager {
     this.root.innerHTML = `
       <section class="overlay-panel" role="dialog" aria-labelledby="victoryTitle">
         <h2 id="victoryTitle">Chapter Complete</h2>
-        <p class="panel-subtitle">Cleared level ${summary?.reachedLevel ?? CAMPAIGN_MAX_LEVEL} · ${summary?.coinsEarned ?? 0} coins earned</p>
+        <p class="panel-subtitle">Cleared level ${summary?.reachedLevel ?? CAMPAIGN_MAX_LEVEL}</p>
         <div class="button-stack">
           <button data-action="new">New Run</button>
           <button data-action="menu">Main Menu</button>
@@ -212,4 +224,8 @@ export class ScreenManager {
       });
     });
   }
+}
+
+function countPermanentCores(permanentUpgrades = {}) {
+  return Object.values(permanentUpgrades || {}).reduce((sum, count) => sum + (Number(count) || 0), 0);
 }

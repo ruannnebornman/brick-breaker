@@ -32,12 +32,16 @@ export class BossSystem {
   updateAttacks(boss, game, delta) {
     for (const attack of boss.attacks) {
       const state = boss.attackState[attack.id];
+      if (!state.scaledInitial) {
+        state.timer = scaleBossCooldown(state.timer, boss.level);
+        state.scaledInitial = true;
+      }
       state.timer -= delta;
       if (state.timer > 0) continue;
 
       this.executeAttack(boss, attack, game);
       const phaseMultiplier = boss.phase >= 3 ? 0.62 : boss.phase >= 2 ? 0.78 : 1;
-      state.timer = attack.cooldown * phaseMultiplier;
+      state.timer = scaleBossCooldown(attack.cooldown * phaseMultiplier, boss.level);
     }
   }
 
@@ -204,4 +208,23 @@ export class BossSystem {
     const phaseMultiplier = boss.phase >= 3 ? 1.22 : boss.phase >= 2 ? 1.12 : 1;
     return (attack.speed || 170) * phaseMultiplier;
   }
+}
+
+function scaleBossCooldown(cooldown, levelNumber) {
+  const frequency = getBossAttackFrequencyMultiplier(levelNumber);
+  return cooldown / frequency;
+}
+
+function getBossAttackFrequencyMultiplier(levelNumber) {
+  const level = Math.max(10, Number(levelNumber) || 10);
+  if (level <= 10) return 0.45;
+  if (level <= 30) return interpolate(level, 10, 30, 0.45, 0.6);
+  if (level <= 50) return interpolate(level, 30, 50, 0.6, 0.75);
+  if (level <= 80) return interpolate(level, 50, 80, 0.75, 0.88);
+  return interpolate(Math.min(level, 100), 80, 100, 0.88, 0.94);
+}
+
+function interpolate(value, fromLevel, toLevel, fromValue, toValue) {
+  const t = (value - fromLevel) / (toLevel - fromLevel);
+  return fromValue + (toValue - fromValue) * Math.max(0, Math.min(1, t));
 }
