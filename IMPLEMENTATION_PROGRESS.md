@@ -695,3 +695,34 @@ Defaults documented:
 - This step gives every major 10th-level boss a unique first-pass identity, not final boss balance.
 - Boss projectiles still use the existing hostile-hit path: paddle hit consumes shields/lives and respawns balls.
 - Boss image assets are still optional; all new boss identity visuals are code-drawn fallbacks for GitHub Pages compatibility.
+
+## Step 21 - Thorn Hazard Balance Pass
+
+Status: Complete
+
+Completed:
+- Removed thorn-patch hazards from the Level 18 difficulty spike.
+- Delayed the first generated thorn patch to Level 36 and the second simultaneous thorn patch to Level 48.
+- Changed thorn patches from life-damaging hostile hits into physical paddle blockers.
+- Added a hazard contact behavior flag so future hazards can still opt into damaging behavior without making thorn patches lethal.
+- Switched hazard paddle checks from oversized circle overlap to exact rectangle overlap.
+- Allowed zero-damage hostile sources to remain zero-damage if future content needs that behavior.
+
+Files changed:
+- `src/core/Game.js`
+- `src/data/hazardTypes.js`
+- `src/data/levels.js`
+- `src/entities/Hazard.js`
+- `src/systems/HazardSystem.js`
+- `IMPLEMENTATION_PROGRESS.md`
+
+Verification:
+- Ran JavaScript syntax checks across all `src/**/*.js` modules and `tools/playtest-headed.mjs`.
+- Ran generated-level checks confirming Levels 18, 24, and 35 have no hazards, Level 36 has one thorn patch, boss Level 40 has no regular hazards, and Level 48 has two thorn patches.
+- Ran a module-level hazard behavior check confirming thorn patches block the paddle without calling the hostile-hit/life-loss path.
+- Ran a Chromium/Playwright browser smoke check against local static hosting with `?debug=1`, confirming Level 18 has no hazards, Level 36 blocks the paddle without changing lives, Canvas rendering is nonblank, and no runtime page errors occurred.
+- Ran `git diff --check`.
+
+Defaults documented:
+- Thorn patches are now lane-control obstacles, not direct damage traps.
+- The first playable hazard introduction is intentionally later than the first drone/enemy pressure so players are not learning multiball, projectiles, and floor blockers at the same time.

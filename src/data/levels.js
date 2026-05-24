@@ -96,6 +96,9 @@ export const AUTHORED_LEVELS = [
 
 export const MVP_LEVELS = AUTHORED_LEVELS;
 
+const FIRST_THORN_HAZARD_LEVEL = 36;
+const SECOND_THORN_HAZARD_LEVEL = 48;
+
 export function getLevelDefinition(levelNumber, runSeed = 1) {
   const safeLevel = clampLevel(levelNumber);
   const authored = AUTHORED_LEVELS.find((level) => level.levelNumber === safeLevel);
@@ -423,7 +426,7 @@ function createGeneratedEnemies(levelNumber, rng) {
 }
 
 function createGeneratedHazards(levelNumber) {
-  if (levelNumber < 18 || levelNumber % 10 === 0) return [];
+  if (levelNumber < FIRST_THORN_HAZARD_LEVEL || levelNumber % 10 === 0) return [];
 
   const hazards = [
     {
@@ -435,7 +438,7 @@ function createGeneratedHazards(levelNumber) {
     },
   ];
 
-  if (levelNumber >= 24) {
+  if (levelNumber >= SECOND_THORN_HAZARD_LEVEL) {
     hazards.push({
       type: "thorn_patch",
       x: 740,

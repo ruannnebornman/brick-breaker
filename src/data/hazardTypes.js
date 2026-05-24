@@ -4,8 +4,9 @@ export const HAZARD_TYPES = {
     name: "Thorn Patch",
     width: 132,
     height: 26,
-    damage: 1,
-    tickRate: 1.45,
+    damage: 0,
+    contactBehavior: "block",
+    tickRate: 0.35,
     assetId: "hazard_thorn_patch",
     palette: {
       fill: "rgba(73, 112, 59, 0.58)",

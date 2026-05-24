@@ -326,7 +326,7 @@ export class Game {
       return;
     }
 
-    this.activeRun.lives -= source.damage || 1;
+    this.activeRun.lives -= source.damage ?? 1;
     if (this.activeRun.lives <= 0) {
       this.gameOver();
       return;

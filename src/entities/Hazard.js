@@ -9,6 +9,7 @@ export class Hazard {
     this.width = definition.width ?? type.width;
     this.height = definition.height ?? type.height;
     this.damage = definition.damage ?? type.damage;
+    this.contactBehavior = definition.contactBehavior || type.contactBehavior || "damage";
     this.tickRate = definition.tickRate ?? type.tickRate;
     this.cooldownTimer = definition.initialCooldown ?? 0;
     this.assetId = type.assetId;
@@ -18,5 +19,14 @@ export class Hazard {
 
   update(delta) {
     this.cooldownTimer = Math.max(0, this.cooldownTimer - delta);
+  }
+
+  get rect() {
+    return {
+      x: this.x,
+      y: this.y,
+      width: this.width,
+      height: this.height,
+    };
   }
 }
