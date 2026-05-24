@@ -101,8 +101,7 @@ Active runs must be declarative. Saves should store profile progress, settings, 
 ```text
 /index.html
 /styles.css
-/README.md
-/IMPLEMENTATION_PLAN.md
+/VERSION
 
 /src/main.js
 
@@ -153,6 +152,12 @@ Active runs must be declarative. Saves should store profile progress, settings, 
 /src/ui/UpgradeCards.js
 /src/ui/PermanentShop.js
 /src/ui/ScreenManager.js
+
+/docs/README.md
+/docs/IMPLEMENTATION_PLAN.md
+/docs/IMPLEMENTATION_PROGRESS.md
+/docs/ASSET_REQUIRED_LIST.md
+/docs/V0.23_FIX_PLAN.md
 ```
 
 Optional later folders:
@@ -161,7 +166,6 @@ Optional later folders:
 /assets/images/
 /assets/audio/
 /assets/fonts/
-/docs/
 ```
 
 External assets are not required for the first version. If assets are added later, keep paths relative so GitHub Pages works from either the root domain or a project subpath.

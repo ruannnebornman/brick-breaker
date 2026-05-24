@@ -1,3 +1,5 @@
+const MAJOR_BOSS_HP_MULTIPLIER = 3;
+
 export const BOSSES = {
   mossback_golem: {
     id: "mossback_golem",
@@ -5,7 +7,7 @@ export const BOSSES = {
     level: 10,
     biomeId: "grasslands_training_ruins",
     visualVariant: "moss_depths",
-    baseHp: 190,
+    baseHp: scaleMajorBossHp(190),
     hitbox: {
       x: 252,
       y: 70,
@@ -590,7 +592,7 @@ function createMajorBoss({
     level,
     biomeId,
     visualVariant,
-    baseHp,
+    baseHp: scaleMajorBossHp(baseHp),
     hitbox: {
       x: 236,
       y: 64,
@@ -630,4 +632,8 @@ function createMajorBoss({
     assetIdle: `boss_${id}`,
     assetDamaged: `boss_${id}`,
   };
+}
+
+function scaleMajorBossHp(baseHp) {
+  return Math.round(baseHp * MAJOR_BOSS_HP_MULTIPLIER);
 }

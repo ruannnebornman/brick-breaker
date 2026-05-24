@@ -68,7 +68,7 @@ export class UpgradeSystem {
     stats.ballSpeed = Math.min(stats.ballSpeed, stats.ballMaxSpeed);
     stats.paddleWidth = Math.min(stats.paddleWidth, 260);
     stats.critChance = Math.min(stats.critChance, 0.75);
-    stats.ballCount = Math.min(stats.ballCount, 4);
+    stats.ballCount = Math.min(stats.ballCount, 10);
     stats.elementChance = Math.min(stats.elementChance, 0.85);
     stats.statusDuration = Math.min(stats.statusDuration, 2.4);
     stats.pierceChance = Math.min(stats.pierceChance, 0.7);
@@ -82,10 +82,17 @@ export class UpgradeSystem {
   offerChoices({ seed, levelNumber, runUpgrades }) {
     const stacks = this.countStacks(runUpgrades);
     const selectedIds = new Set(runUpgrades);
-    const available = this.upgrades.filter((upgrade) =>
+    const normalAvailable = this.upgrades.filter((upgrade) =>
+      !upgrade.fallbackOnly &&
       (stacks[upgrade.id] || 0) < upgrade.maxStacks &&
       (upgrade.prerequisites || []).every((id) => selectedIds.has(id))
     );
+    const fallbackAvailable = this.upgrades.filter((upgrade) =>
+      upgrade.fallbackOnly &&
+      (stacks[upgrade.id] || 0) < upgrade.maxStacks &&
+      (upgrade.prerequisites || []).every((id) => selectedIds.has(id))
+    );
+    const available = normalAvailable.length > 0 ? normalAvailable : fallbackAvailable;
     const rng = new Random((seed + levelNumber * 1009 + runUpgrades.length * 9176) >>> 0);
     const choices = [];
     const broadlyUseful = available.filter((upgrade) =>

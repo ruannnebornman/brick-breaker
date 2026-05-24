@@ -752,3 +752,67 @@ Verification:
 
 Defaults documented:
 - Version `0.22.0` identifies the build after the thorn hazard balance pass and visible version stamp work.
+
+## Step 23 - Documentation Folder and v0.23 Planning
+
+Status: Complete
+
+Completed:
+- Moved Markdown documentation into `docs/`.
+- Added a planning-only v0.23 fix document for the latest Level 51 playtest notes.
+- Updated the implementation plan's file-structure section to show the docs folder layout.
+- Left gameplay code unchanged for this step.
+
+Files changed:
+- `docs/README.md`
+- `docs/IMPLEMENTATION_PLAN.md`
+- `docs/IMPLEMENTATION_PROGRESS.md`
+- `docs/ASSET_REQUIRED_LIST.md`
+- `docs/V0.23_FIX_PLAN.md`
+
+Verification:
+- Confirmed all Markdown docs now live under `docs/`.
+- Ran `git diff --check`.
+- Confirmed no gameplay-code files were changed in this planning-only step.
+
+Defaults documented:
+- Root `VERSION` remains at the repository root as the canonical deploy/build version file.
+- v0.23 work should start with the empty upgrade selection blocker before tuning boss HP, cannon gating, or multiball caps.
+
+## Step 24 - v0.23 Playtest Fix Implementation
+
+Status: Complete
+
+Completed:
+- Implemented fallback-only repeatable upgrades so an exhausted normal upgrade pool cannot soft-lock the run.
+- Raised the multiball upgrade cap so long runs can build toward 10 total balls.
+- Added per-level cannon launch gating so the cannon cannot fire before the first ball launch.
+- Updated the cannon HUD to show `Cannon Locked` before launch.
+- Increased major 10th-level boss HP with a `3x` multiplier while leaving the Level 5 Training Core unchanged.
+- Bumped the visible build version and app version file to `0.23.0`.
+- Updated the v0.23 fix plan from planning-only to implemented status.
+
+Files changed:
+- `VERSION`
+- `src/data/version.js`
+- `src/data/upgrades.js`
+- `src/data/bosses.js`
+- `src/systems/UpgradeSystem.js`
+- `src/systems/LevelSystem.js`
+- `src/core/Game.js`
+- `src/ui/HUD.js`
+- `docs/V0.23_FIX_PLAN.md`
+- `docs/IMPLEMENTATION_PROGRESS.md`
+
+Verification:
+- Ran JavaScript syntax checks across all `src/**/*.js` modules and `tools/playtest-headed.mjs`.
+- Confirmed root `VERSION` matches imported `APP_VERSION` at `0.23.0`.
+- Ran module-level checks confirming exhausted normal upgrade pools produce fallback choices, max multiball stats create 10 balls, new levels start with the cannon launch gate locked, and sampled major boss HP values are tripled.
+- Ran a focused cannon gate check confirming `fireCannon()` creates no projectile before launch and creates a projectile after launch.
+- Ran a Chromium/Playwright browser smoke check against local static hosting with `?debug=1`, confirming the `v0.23.0` stamp, `Cannon Locked` HUD state, cannon firing after launch, fallback choices, Level 50 boss HP of 1050, 10-ball max spawn, and no runtime page errors.
+- Ran `git diff --check`.
+
+Defaults documented:
+- The `3x` boss HP pass is the first conservative implementation. If bosses still melt too fast, test a higher multiplier in a follow-up balance pass.
+- Repeatable fallback upgrades are only offered when the normal upgrade pool is exhausted.
+- Fresh manual playtesting should target Level 55+ to confirm the previous Level 51 blocker is gone.

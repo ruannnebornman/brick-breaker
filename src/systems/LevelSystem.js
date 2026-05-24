@@ -56,6 +56,7 @@ export class LevelSystem {
       floatingTexts: [],
       nextBrickId: bricks.length + 1,
       nextProjectileId: 1,
+      hasLaunchedBalls: false,
       elapsed: 0,
       completed: false,
     };

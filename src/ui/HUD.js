@@ -21,8 +21,13 @@ export class HUD {
     const biome = BIOMES[game.level?.definition?.biomeId];
     const biomeLabel = biome?.name?.split(" / ")[0] || "Grasslands";
     const elementLabel = getElementLabel(game.stats);
+    const cannonStatus = !game.level?.hasLaunchedBalls
+      ? "Locked"
+      : game.level.paddle.cannonCooldownRemaining <= 0
+        ? "Ready"
+        : game.level.paddle.cannonCooldownRemaining.toFixed(1);
     const cannon = game.level?.paddle?.cannonEnabled
-      ? `<span class="hud-pill">Cannon ${game.level.paddle.cannonCooldownRemaining <= 0 ? "Ready" : game.level.paddle.cannonCooldownRemaining.toFixed(1)}</span>`
+      ? `<span class="hud-pill">Cannon ${cannonStatus}</span>`
       : "";
     const bossHtml = boss?.active ? `
       <div class="boss-hud">

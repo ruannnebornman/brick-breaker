@@ -344,12 +344,14 @@ export class Game {
       ball.launch(offset);
     });
     if (stuck.length > 0) {
+      this.level.hasLaunchedBalls = true;
       this.audio.play("select");
     }
   }
 
   fireCannon() {
     const paddle = this.level?.paddle;
+    if (!this.level?.hasLaunchedBalls) return;
     if (!paddle?.canFireCannon()) return;
 
     const count = Math.max(1, paddle.cannonProjectileCount);
@@ -422,6 +424,7 @@ export class Game {
       ball.x += (index - (freshLevel.balls.length - 1) / 2) * this.stats.ballRadius * 2.5;
     });
     this.level.balls = freshLevel.balls;
+    this.level.hasLaunchedBalls = false;
   }
 
   completeLevel() {
