@@ -8,10 +8,16 @@ import { SaveSystem } from "./systems/SaveSystem.js";
 import { HUD } from "./ui/HUD.js";
 import { ScreenManager } from "./ui/ScreenManager.js";
 import { ASSETS } from "./data/assets.js";
+import { APP_VERSION } from "./data/version.js";
 
 const canvas = document.querySelector("#gameCanvas");
 const uiRoot = document.querySelector("#uiRoot");
 const hudRoot = document.querySelector("#hudRoot");
+const versionStamp = document.querySelector("#versionStamp");
+
+if (versionStamp) {
+  versionStamp.textContent = `v${APP_VERSION}`;
+}
 
 const saveSystem = new SaveSystem();
 const input = new Input(canvas);

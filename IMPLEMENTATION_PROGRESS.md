@@ -726,3 +726,29 @@ Verification:
 Defaults documented:
 - Thorn patches are now lane-control obstacles, not direct damage traps.
 - The first playable hazard introduction is intentionally later than the first drone/enemy pressure so players are not learning multiball, projectiles, and floor blockers at the same time.
+
+## Step 22 - Visible Build Version Stamp
+
+Status: Complete
+
+Completed:
+- Added root `VERSION` file with app version `0.22.0`.
+- Added app version data module for browser rendering.
+- Added a fixed bottom-right version stamp so deployed builds can be identified during playtests.
+
+Files changed:
+- `VERSION`
+- `index.html`
+- `styles.css`
+- `src/main.js`
+- `src/data/version.js`
+- `IMPLEMENTATION_PROGRESS.md`
+
+Verification:
+- Ran JavaScript syntax checks across all `src/**/*.js` modules and `tools/playtest-headed.mjs`.
+- Confirmed root `VERSION` matches imported `APP_VERSION`.
+- Ran `git diff --check`.
+- Ran a Chromium/Playwright browser smoke check against local static hosting with `?debug=1`, confirming the bottom-right stamp renders as `v0.22.0`, uses fixed positioning, ignores pointer events, and no runtime page errors occurred.
+
+Defaults documented:
+- Version `0.22.0` identifies the build after the thorn hazard balance pass and visible version stamp work.
