@@ -96,3 +96,108 @@ Possible indicator treatments:
 Balance notes:
 - Reducing the paddle by one-third is a large feel change, so test it alongside early permanent rewards and boss attack pacing.
 - If the game becomes too punishing, offset the smaller paddle with clearer shield feedback or earlier paddle-size upgrades.
+
+## Trick Shot And Fast Clear Rewards
+
+Status: Discuss later.
+
+Idea:
+- Reward stylish or high-skill play with bonus upgrades, coins, or another lightweight reward.
+- Examples include trick shots, fast clears, clean clears, clutch saves, or long combo chains.
+
+Possible reward triggers:
+- Clear a level under a target time.
+- Clear a level without losing a heart.
+- Break multiple bricks with one ball path, pierce chain, cannon shot, or elemental chain.
+- Save a ball at the last moment with the paddle edge.
+- Keep all balls alive through a level.
+- Defeat a boss quickly or without taking damage.
+
+Possible rewards:
+- Bonus coins.
+- A temporary run-only flourish reward if temporary buffs return later.
+- A bonus in-level reward block on the next stage.
+- Store discount token or reroll token once those systems exist.
+- A cosmetic score/combo popup only, if power rewards become too snowbally.
+
+Why:
+- It gives strong players extra goals beyond simply surviving.
+- It makes the game celebrate exciting moments the player already notices.
+- It can make fast, aggressive play feel different from careful, safe play.
+
+Concerns to discuss:
+- Avoid making the rich-get-richer problem too extreme.
+- Rewards should be readable and not interrupt the flow.
+- Trick shot detection needs to be simple enough that players understand why they earned it.
+
+## Element-Weak Blocks
+
+Status: Discuss later.
+
+Idea:
+- Add block types that are weak to specific elements.
+- Example: ice-coated blocks take extra damage from Fire, armored metal blocks take extra damage from Acid, overloaded blocks take extra damage from Lightning, and brittle crystal blocks take extra damage from Frost.
+
+Possible gameplay:
+- Some levels intentionally encourage a certain element build.
+- Element-weak blocks could break faster, trigger a bonus effect, or drop better rewards when hit by their weakness.
+- Boss phases could spawn blocks that teach or reward the correct element.
+- Reward blocks could sometimes hint at a useful element for the current level.
+
+Why:
+- Gives elemental upgrades a clearer purpose beyond raw power.
+- Makes choosing Fire, Lightning, Frost, or Acid feel like a real build decision.
+- Adds level variety without needing every stage to introduce a new enemy.
+
+Concerns to discuss:
+- Weakness icons/colors must be extremely readable.
+- Avoid making runs feel doomed if the player does not get the right element.
+- Weak blocks should reward good builds, not hard-gate progress.
+- Need to decide whether weaknesses live on normal blocks, special blocks, bosses, or all of them.
+
+## Paddle Characters With Starting Elements
+
+Status: Discuss later.
+
+Idea:
+- Add selectable paddle characters.
+- Each character starts the run with one or more base elements.
+- More characters unlock later through progression, achievements, bosses, store purchases, or special challenges.
+
+Examples:
+- Bob starts with Fire.
+- Sandi starts with Water and Earth.
+- A later character could start with Spark and Iron.
+- A high-end character could start with a rare family identity, but still follow the one-copy-per-element run rules.
+
+Why:
+- Gives runs a different starting identity before the first reward block.
+- Lets players chase specific combo routes from the start.
+- Makes the element system feel more personal and replayable.
+- Creates a natural unlock path once all 12 elements and combos are in the game.
+
+Concerns to discuss:
+- Starting with two elements may be much stronger than starting with one.
+- Character unlocks should not make the first few levels impossible to balance.
+- The character select UI needs to clearly show starting elements and likely early combo routes.
+- Starting elements should count as owned for the run, so they cannot appear again as duplicate rewards.
+
+## Coin Economy Tuning
+
+Status: Discuss later.
+
+Idea:
+- Revisit coin income, store prices, and coin fallback values after v0.26 is playable.
+- v0.26 uses a temporary test value of 1000 coins per boss clear.
+- Exhausted-pool coin bags use 10% of the boss reward, so they are 100 coins while bosses give 1000.
+
+Why:
+- Store prices, max stacks, and clear rewards are not balanced yet.
+- The first implementation should make the store usable for testing instead of blocking on economy math.
+- Real tuning needs playtest data: how fast runs clear, how often coin bags appear, how often bosses are beaten, and how expensive upgrades feel.
+
+Questions to revisit:
+- Should normal levels give coins, or only bosses and fallback bags?
+- Should later bosses give more than earlier bosses?
+- Should coin bags scale by biome, boss tier, or current level?
+- Should store costs keep doubling forever, or use a softer curve for high-stack upgrades?

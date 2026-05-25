@@ -6,7 +6,7 @@ Play it here:
 
 https://ruannnebornman.github.io/brick-breaker
 
-Current build: `v0.24.0`
+Current build: `v0.25.0`
 
 ## What It Is
 
@@ -20,15 +20,16 @@ The goal is quick arcade momentum: short levels, punchy upgrades, readable chaos
 - Element stacking: Fire, Lightning, Frost, Acid, and Normal can combine in one run.
 - Upgrade-driven builds with multiball, crit, pierce, shields, cannon tech, and elemental amplification.
 - Major bosses every 10 levels, each with distinct first-pass attack identities.
-- Reward blocks now drop falling pickups for in-level upgrade moments.
+- Reward blocks now drop falling pickups with clearer permanent and temporary reward feedback.
+- Boss attacks are paced more gently early, then scale back up later.
 - Static-site friendly: no backend, no build step, GitHub Pages compatible.
 - Visible bottom-right version stamp so deployed builds are easy to verify.
 
 ## Controls
 
 - Move paddle: mouse, touch drag, `A` / `D`, or arrow keys.
-- Launch balls: click, tap, or `Space`.
-- Fire cannon: `F` after the balls have launched and the cannon upgrade is active.
+- Launch balls: click or tap.
+- Fire cannon: `Space` after the balls have launched and the cannon upgrade is active.
 - Pause: `Escape`.
 
 ## Local Run
@@ -63,11 +64,8 @@ Useful environment variables:
 ## Project Docs
 
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
-- [Implementation Progress](docs/IMPLEMENTATION_PROGRESS.md)
-- [v0.23 Fix Plan](docs/V0.23_FIX_PLAN.md)
-- [v0.24 Reward Block Plan](docs/V0.24_REWARD_BLOCK_PLAN.md)
-- [Future Feature Ideas](docs/FUTURE_FEATURE_IDEAS.md)
 - [Asset Required List](docs/ASSET_REQUIRED_LIST.md)
+- [Archived Plans and Progress](docs/archive/)
 
 ## Versioning
 

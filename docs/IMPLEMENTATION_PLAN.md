@@ -155,9 +155,8 @@ Active runs must be declarative. Saves should store profile progress, settings, 
 
 /docs/README.md
 /docs/IMPLEMENTATION_PLAN.md
-/docs/IMPLEMENTATION_PROGRESS.md
 /docs/ASSET_REQUIRED_LIST.md
-/docs/V0.23_FIX_PLAN.md
+/docs/archive/
 ```
 
 Optional later folders:
