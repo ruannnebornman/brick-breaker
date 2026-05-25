@@ -1,29 +1,14 @@
 import { Random } from "../core/Random.js";
-import { RUN_UPGRADES } from "./upgrades.js";
 import {
   getPermanentUpgrade,
+  getRunScopedUpgrade,
+  listAvailableRunScopedUpgrades,
   listAvailablePermanentUpgrades,
   PERMANENT_UPGRADES,
 } from "./permanentUpgrades.js";
 
-const RUN_UPGRADE_BY_ID = new Map(RUN_UPGRADES.map((upgrade) => [upgrade.id, upgrade]));
-
-const RUN_REWARD_SEQUENCE = [
-  "ball_damage",
-  "multiball",
-  "paddle_width",
-  "crit_chance",
-  "fire_burn",
-  "lightning_chain",
-  "frost_brittle",
-  "acid_corrosion",
-  "piercing_angle",
-  "elemental_amplifier",
-  "paddle_cannon",
-  "cannon_tuning",
-  "cannon_multishot",
-  "shield_life",
-];
+export const BOSS_COIN_REWARD = 1000;
+export const EXHAUSTED_RUN_REWARD_COIN_BAG_VALUE = BOSS_COIN_REWARD * 0.1;
 
 export function getPermanentRewardChance(levelNumber) {
   const level = Math.max(1, Number(levelNumber) || 1);
@@ -41,54 +26,16 @@ export function rollLevelPermanentReward(levelNumber, seed = 1, salt = 0) {
   return rng.chance(getPermanentRewardChance(levelNumber));
 }
 
-export function createRewardForLevelSlot(levelNumber, slot, seed = 1, { isBossLevel = false } = {}) {
+export function createRewardForLevelSlot(levelNumber, slot, seed = 1, options = {}) {
   const rng = new Random((seed + levelNumber * 7919 + slot * 104729) >>> 0);
-  const hasPermanentReward = rollLevelPermanentReward(levelNumber, seed, 1);
-
-  if (slot === 0 && hasPermanentReward) {
-    return permanentRewardForLevel(levelNumber, slot, seed);
-  }
-
-  const rewardSlot = Math.max(0, hasPermanentReward ? slot - 1 : slot);
-
-  if (levelNumber === 3 && rewardSlot === 0) {
-    return instantBallsReward(1, "First Cache");
-  }
-
-  if (levelNumber === 7) {
-    return rewardSlot === 0
-      ? runUpgradeReward("ball_damage")
-      : instantBallsReward(3, "Triple Serve");
-  }
-
-  if (levelNumber === 14) {
-    return temporaryStatReward("temp_multiball_3", "+3 Balls", 2, { ballCountAdd: 3 }, "Temporary");
-  }
-
-  if (isBossLevel && rewardSlot === 0) {
-    return runUpgradeReward(pickRunUpgradeId(levelNumber, rewardSlot, rng));
-  }
-
-  if (rewardSlot === 0) {
-    return runUpgradeReward(pickRunUpgradeId(levelNumber, rewardSlot, rng));
-  }
-
-  if (levelNumber >= 14 && rng.chance(0.5)) {
-    return temporaryStatReward("temp_multiball_3", "+3 Balls", 2, { ballCountAdd: 3 }, "Temporary");
-  }
-
-  if (rng.chance(0.35)) {
-    return temporaryStatReward("temp_damage_4", "+4 Damage", 2, { ballDamageAdd: 4 }, "Temporary");
-  }
-
-  return temporaryStatReward("temp_shield_1", "+1 Shield", 2, { shieldSavesAdd: 1 }, "Temporary");
+  return pickRunScopedReward(rng, options);
 }
 
 export function getRewardBlockCount(levelNumber, { isBossLevel = false } = {}) {
-  if (levelNumber === 7) return 2;
+  // The replacement block is for normal stages; boss reward volume changes with boss-choice flow later.
   if (isBossLevel) return 2;
-  if (levelNumber >= 14 && levelNumber % 7 === 0) return 2;
-  return 1;
+  const baseCount = levelNumber === 7 || (levelNumber >= 14 && levelNumber % 7 === 0) ? 2 : 1;
+  return baseCount + 1;
 }
 
 export function createStageBonusChoices({
@@ -128,14 +75,10 @@ export function getRewardStyle(reward) {
   if (!reward) return rewardStyles.common;
   if (reward.kind === "permanentUpgrade") return rewardStyles.permanent;
   if (reward.kind === "runUpgrade") return rewardStyles.run;
+  if (reward.kind === "runScopedUpgrade") return rewardStyles.run;
   if (reward.kind === "temporaryUpgrade") return rewardStyles.temporary;
   if (reward.kind === "currency") return rewardStyles.currency;
   return rewardStyles.common;
-}
-
-function pickRunUpgradeId(levelNumber, slot, rng) {
-  const offset = rng.int(0, RUN_REWARD_SEQUENCE.length - 1);
-  return RUN_REWARD_SEQUENCE[(levelNumber + slot * 3 + offset) % RUN_REWARD_SEQUENCE.length];
 }
 
 function pickPermanentUpgrade(levelNumber, slot, seed, profilePermanentUpgrades = {}) {
@@ -189,31 +132,6 @@ function permanentRewardForLevel(levelNumber, slot, seed) {
   });
 }
 
-function runUpgradeReward(upgradeId) {
-  const upgrade = RUN_UPGRADE_BY_ID.get(upgradeId) || RUN_UPGRADE_BY_ID.get("ball_damage");
-  return {
-    kind: "runUpgrade",
-    id: `run_${upgrade.id}`,
-    upgradeId: upgrade.id,
-    label: upgrade.name,
-    description: upgrade.description,
-    rarity: upgrade.rarity || "Run",
-    category: upgrade.category || "Run Upgrade",
-  };
-}
-
-function instantBallsReward(count, label) {
-  return {
-    kind: "instant",
-    id: `instant_balls_${count}`,
-    label,
-    description: `+${count} ${count === 1 ? "ball" : "balls"} this level`,
-    rarity: "Common",
-    category: "Instant",
-    statModifiers: { ballCountAdd: count },
-  };
-}
-
 function temporaryStatReward(id, label, durationLevels, statModifiers, rarity) {
   return {
     kind: "temporaryUpgrade",
@@ -225,6 +143,71 @@ function temporaryStatReward(id, label, durationLevels, statModifiers, rarity) {
     durationLevels,
     statModifiers,
   };
+}
+
+function pickRunScopedReward(rng, {
+  profilePermanentUpgrades = {},
+  runScopedUpgrades = {},
+  reservedRunScopedUpgrades = {},
+} = {}) {
+  const available = listAvailableRunScopedUpgrades(
+    profilePermanentUpgrades,
+    mergeStackMaps(runScopedUpgrades, reservedRunScopedUpgrades),
+  );
+  if (available.length === 0) {
+    return coinBagReward(EXHAUSTED_RUN_REWARD_COIN_BAG_VALUE);
+  }
+
+  const total = available.reduce((sum, upgrade) => sum + upgrade.weight, 0);
+  let roll = rng.range(0, total || 1);
+  for (const upgrade of available) {
+    roll -= upgrade.weight;
+    if (roll <= 0) return runScopedUpgradeReward(upgrade.id);
+  }
+  return runScopedUpgradeReward(available[available.length - 1].id);
+}
+
+function runScopedUpgradeReward(upgradeId) {
+  const upgrade = getRunScopedUpgrade(upgradeId);
+  return {
+    kind: "runScopedUpgrade",
+    id: `brick_${upgrade.id}`,
+    upgradeId: upgrade.id,
+    permanentId: upgrade.permanentId,
+    label: upgrade.name,
+    description: upgrade.description,
+    rarity: "Run",
+    category: upgrade.category || "Run Upgrade",
+    stack: null,
+    maxStacks: upgrade.maxStacks,
+  };
+}
+
+function coinBagReward(amount) {
+  const coins = Math.max(0, Math.round(amount || 0));
+  return {
+    kind: "currency",
+    id: `coin_bag_${coins}`,
+    label: `+${coins} Coins`,
+    description: `${coins} coins`,
+    rarity: "Fallback",
+    category: "Coins",
+    amount: coins,
+  };
+}
+
+function mergeStackMaps(...maps) {
+  const merged = {};
+  for (const map of maps) {
+    if (!map || typeof map !== "object") continue;
+    for (const [id, count] of Object.entries(map)) {
+      const value = Math.trunc(Number(count) || 0);
+      if (value > 0) {
+        merged[id] = (merged[id] || 0) + value;
+      }
+    }
+  }
+  return merged;
 }
 
 function permanentReward(permanentId, label, options = {}) {

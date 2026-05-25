@@ -1,4 +1,5 @@
 import { CAMPAIGN_MAX_LEVEL } from "../data/levels.js";
+import { getPermanentUpgradeCost, PERMANENT_UPGRADES } from "../data/permanentUpgrades.js";
 import { renderUpgradeCards } from "./UpgradeCards.js";
 
 export class ScreenManager {
@@ -19,6 +20,8 @@ export class ScreenManager {
       this.renderPaused(game);
     } else if (game.mode === "settings") {
       this.renderSettings(game);
+    } else if (game.mode === "store") {
+      this.renderStore(game);
     } else if (game.mode === "levelComplete") {
       this.renderLevelComplete(game);
     } else if (game.mode === "upgradeSelect") {
@@ -42,12 +45,13 @@ export class ScreenManager {
         <p class="panel-subtitle">Grasslands chapter prototype · ${CAMPAIGN_MAX_LEVEL} levels</p>
         <div class="save-summary">
           <span>Highest level: ${game.profile.highestLevelUnlocked}</span>
-          <span>Permanent cores: ${countPermanentCores(game.profile.permanentUpgrades)}</span>
+          <span>Permanent upgrades: ${countPermanentCores(game.profile.permanentUpgrades)}</span>
           <span>${run ? run.pendingReward ? `Reward ready after level ${run.pendingReward.levelCompleted}` : `Run level ${run.currentLevel}, lives ${run.lives}` : "No active run"}</span>
         </div>
         <div class="button-stack">
           <button data-action="continue" ${run ? "" : "disabled"}>Continue Run</button>
           <button data-action="new">New Run</button>
+          <button data-action="store">Store</button>
           <button data-action="settings">Settings</button>
         </div>
       </section>
@@ -129,6 +133,33 @@ export class ScreenManager {
     });
   }
 
+  renderStore(game) {
+    const coins = game.profile?.coins || 0;
+    this.root.innerHTML = `
+      <section class="overlay-panel store-panel" role="dialog" aria-labelledby="storeTitle">
+        <div class="store-heading">
+          <div>
+            <h2 id="storeTitle">Store</h2>
+            <p class="panel-subtitle">Permanent upgrades</p>
+          </div>
+          <strong class="coin-balance">${formatCoins(coins)} coins</strong>
+        </div>
+        <div class="store-list">
+          ${PERMANENT_UPGRADES.map((upgrade) => renderStoreItem(upgrade, game.profile.permanentUpgrades, coins)).join("")}
+        </div>
+        <div class="secondary-row">
+          <button data-action="menu">Main Menu</button>
+        </div>
+      </section>
+    `;
+    this.bindPanelActions(game);
+    this.root.querySelectorAll("[data-permanent-upgrade]").forEach((button) => {
+      button.addEventListener("click", () => {
+        game.purchasePermanentUpgrade(button.dataset.permanentUpgrade);
+      });
+    });
+  }
+
   renderLevelComplete(game) {
     this.root.innerHTML = `
       <section class="overlay-panel" role="dialog" aria-labelledby="clearTitle">
@@ -145,14 +176,8 @@ export class ScreenManager {
 
   renderUpgradeSelect(game) {
     const pending = game.activeRun?.pendingReward;
-    const title = pending?.kind === "stageBonus"
-      ? pending.rewardMode === "permanent" ? "Permanent Core" : "Temporary Boost"
-      : "Choose Upgrade";
-    const subtitle = pending?.kind === "stageBonus"
-      ? pending.rewardMode === "permanent"
-        ? `Level ${pending?.levelCompleted ?? 1} clear · second-chance permanent roll hit`
-        : `Level ${pending?.levelCompleted ?? 1} clear · choose a temporary boost`
-      : `Level ${pending?.levelCompleted ?? 1} clear · +${pending?.coins ?? 0} coins`;
+    const title = getUpgradeSelectTitle(pending);
+    const subtitle = getUpgradeSelectSubtitle(pending);
     const collectedSummary = pending?.collectedSummary?.length
       ? `
         <div class="reward-summary" aria-label="Collected rewards">
@@ -213,6 +238,7 @@ export class ScreenManager {
         const action = button.dataset.action;
         if (action === "continue") game.continueRun();
         if (action === "new") game.newRun();
+        if (action === "store") game.openStore();
         if (action === "settings") game.openSettings();
         if (action === "resume") game.resume();
         if (action === "restart") game.restartLevel();
@@ -228,4 +254,51 @@ export class ScreenManager {
 
 function countPermanentCores(permanentUpgrades = {}) {
   return Object.values(permanentUpgrades || {}).reduce((sum, count) => sum + (Number(count) || 0), 0);
+}
+
+function getUpgradeSelectTitle(pending) {
+  if (pending?.kind === "bossElementChoice") return "Boss Element";
+  if (pending?.kind === "stageBonus") {
+    return pending.rewardMode === "permanent" ? "Permanent Core" : "Temporary Boost";
+  }
+  return "Choose Upgrade";
+}
+
+function getUpgradeSelectSubtitle(pending) {
+  if (pending?.kind === "bossElementChoice") {
+    return `Level ${pending?.levelCompleted ?? 1} boss clear · +${pending?.coinsAwarded ?? 0} coins`;
+  }
+  if (pending?.kind === "stageBonus") {
+    return pending.rewardMode === "permanent"
+      ? `Level ${pending?.levelCompleted ?? 1} clear · second-chance permanent roll hit`
+      : `Level ${pending?.levelCompleted ?? 1} clear · choose a temporary boost`;
+  }
+  return `Level ${pending?.levelCompleted ?? 1} clear · +${pending?.coins ?? 0} coins`;
+}
+
+function renderStoreItem(upgrade, permanentUpgrades = {}, coins = 0) {
+  const owned = permanentUpgrades[upgrade.id] || 0;
+  const maxed = owned >= upgrade.maxStacks;
+  const cost = maxed ? null : getPermanentUpgradeCost(upgrade, owned);
+  const canAfford = !maxed && coins >= cost;
+  const buttonText = maxed ? "Maxed" : `Buy ${formatCoins(cost)}`;
+  return `
+    <article class="store-item ${maxed ? "store-item--maxed" : ""}">
+      <span class="store-icon" aria-hidden="true">${upgrade.icon || upgrade.shortLabel}</span>
+      <div class="store-copy">
+        <strong>${upgrade.name}</strong>
+        <span>${upgrade.effectText}</span>
+        <small>${upgrade.description}</small>
+      </div>
+      <div class="store-meta">
+        <span>${owned}/${upgrade.maxStacks}</span>
+        <span>${maxed ? "Maxed" : `Next: ${upgrade.effectText}`}</span>
+      </div>
+      <button data-permanent-upgrade="${upgrade.id}" ${canAfford ? "" : "disabled"}>${buttonText}</button>
+    </article>
+  `;
+}
+
+function formatCoins(value) {
+  return Math.max(0, Math.round(Number(value) || 0)).toLocaleString("en-US");
 }

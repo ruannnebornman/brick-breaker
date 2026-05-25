@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HOST = "127.0.0.1";
-const SAVE_KEY = "brickBreakerElementalBarrage.save.v1";
+const SAVE_KEY = "brickBreakerElementalBarrage.save.v26";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_PORT = Number(process.env.PORT || 8765);
 const DURATION_MS = Number(process.env.BOT_DURATION_MS || 180000);

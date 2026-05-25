@@ -36,7 +36,9 @@ export class RewardSystem {
       y: brick.y + brick.height / 2,
       vy: style.fallSpeed,
       magnetStrength: style.magnetStrength,
-      collectOnClear: style.collectOnClear,
+      collectOnClear: true,
+      flightMode: "absorb",
+      flightDuration: 0.34,
     });
     game.level.pickups.push(pickup);
     return pickup;

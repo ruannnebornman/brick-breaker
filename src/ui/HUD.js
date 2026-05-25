@@ -1,5 +1,7 @@
 import { BIOMES } from "../data/biomes.js";
 import { getBallElement } from "../data/ballElements.js";
+import { getOwnedBaseElements } from "../data/baseElements.js";
+import { getElementCombo } from "../data/elementCombos.js";
 import { getPermanentUpgradeDisplay, PERMANENT_UPGRADES } from "../data/permanentUpgrades.js";
 
 export class HUD {
@@ -24,6 +26,7 @@ export class HUD {
     const elementLabel = getElementLabel(game.stats);
     const cannon = renderCannonIndicator(game);
     const rewardRails = renderRewardRails(game);
+    const comboReveal = renderComboReveal(game.comboReveal);
     const bossHtml = boss?.active ? `
       <div class="boss-hud">
         <span>${boss.name}</span>
@@ -45,6 +48,7 @@ export class HUD {
         </div>
       </div>
       ${rewardRails}
+      ${comboReveal}
       ${bossHtml}
     `;
     if (html !== this.last) {
@@ -92,18 +96,55 @@ function renderCannonIndicator(game) {
 
 function renderRewardRails(game) {
   const permanentItems = getPermanentItems(game);
-  const temporaryItems = getTemporaryItems(game);
   return `
     <div class="reward-rails" aria-label="Reward state">
       <aside class="reward-rail reward-rail--permanent" aria-label="Permanent upgrades">
         <strong>Permanent</strong>
         ${renderRailItems(permanentItems, "No cores")}
       </aside>
-      <aside class="reward-rail reward-rail--temporary" aria-label="Temporary upgrades">
-        <strong>Temporary</strong>
-        ${renderRailItems(temporaryItems, "No boosts")}
+      <aside class="reward-rail reward-rail--elements" aria-label="Elements and active combo">
+        ${renderElementPanel(game)}
       </aside>
     </div>
+  `;
+}
+
+function renderElementPanel(game) {
+  const ownedElements = getOwnedBaseElements(game.activeRun?.ownedElements || []);
+  const activeCombo = getElementCombo(game.activeRun?.activeComboId);
+  const elementHtml = ownedElements.length > 0
+    ? ownedElements.map(renderElementChip).join("")
+    : `<span class="reward-rail-empty">No elements</span>`;
+  const comboHtml = activeCombo ? `
+    <div class="combo-card">
+      <span>Active Combo ${activeCombo.order}</span>
+      <strong>${activeCombo.name}</strong>
+      <p>${activeCombo.description}</p>
+    </div>
+  ` : `
+    <div class="combo-card combo-card--empty">
+      <span>Active Combo</span>
+      <strong>None</strong>
+      <p>Collect boss elements to unlock reactions.</p>
+    </div>
+  `;
+
+  return `
+    <strong>Elements</strong>
+    <div class="element-list">
+      ${elementHtml}
+    </div>
+    ${comboHtml}
+  `;
+}
+
+function renderElementChip(element) {
+  const ballElement = getBallElement(element.ballElementId);
+  return `
+    <span class="element-chip" style="--element-color: ${ballElement.glowColor}; --element-fill: ${ballElement.trailColor}">
+      <b>${element.icon}</b>
+      <span>${element.name}</span>
+    </span>
   `;
 }
 
@@ -139,20 +180,23 @@ function getPermanentItems(game) {
     });
 }
 
-function getTemporaryItems(game) {
-  const active = game.activeRun?.temporaryUpgrades || [];
-  const staged = game.level?.stagedRewards?.temporaryUpgrades || [];
-  const items = [...active, ...staged].filter((upgrade) => upgrade && upgrade.label);
-  return items.slice(-7).map((upgrade) => ({
-    prefix: "T",
-    label: upgrade.label,
-    value: upgrade.remainingLevels > 0 ? `${upgrade.remainingLevels}` : "now",
-  }));
-}
-
 function getElementLabel(stats) {
   const activeElements = Array.isArray(stats?.activeElements) && stats.activeElements.length > 0
     ? stats.activeElements
     : [stats?.element || "normal"];
   return [...new Set(activeElements)].map((id) => getBallElement(id).name).join(" + ");
+}
+
+function renderComboReveal(reveal) {
+  if (!reveal) return "";
+  const progress = Math.max(0, Math.min(1, 1 - reveal.life / reveal.maxLife));
+  return `
+    <div class="combo-reveal" style="--combo-progress: ${progress}">
+      <div class="combo-reveal-card">
+        <span>Combo ${reveal.order}</span>
+        <strong>${reveal.name}</strong>
+        <p>${reveal.description}</p>
+      </div>
+    </div>
+  `;
 }

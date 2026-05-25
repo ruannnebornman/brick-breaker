@@ -10,8 +10,8 @@ import { HAZARD_TYPES } from "../data/hazardTypes.js";
 import { getLevelDefinition } from "../data/levels.js";
 
 export class LevelSystem {
-  createLevel(levelNumber, stats, runSeed = 1) {
-    const definition = getLevelDefinition(levelNumber, runSeed);
+  createLevel(levelNumber, stats, runSeed = 1, rewardContext = {}) {
+    const definition = getLevelDefinition(levelNumber, runSeed, rewardContext);
     const paddle = new Paddle(stats);
     const balls = Array.from({ length: stats.ballCount || 1 }, (_, index) => new Ball({
         x: paddle.x,
@@ -61,6 +61,7 @@ export class LevelSystem {
       nextPickupId: 1,
       hasLaunchedBalls: false,
       stagedRewards: createEmptyStagedRewards(),
+      bossClearCoinsAwarded: false,
       elapsed: 0,
       completed: false,
     };
@@ -77,6 +78,7 @@ export class LevelSystem {
 function createEmptyStagedRewards() {
   return {
     runUpgrades: [],
+    runScopedUpgrades: {},
     temporaryUpgrades: [],
     permanentUpgrades: [],
     coins: 0,

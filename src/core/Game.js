@@ -13,7 +13,18 @@ import { CAMPAIGN_MAX_LEVEL } from "../data/levels.js";
 import { Ball } from "../entities/Ball.js";
 import { Projectile } from "../entities/Projectile.js";
 import { getBallElement } from "../data/ballElements.js";
-import { getRewardStyle } from "../data/rewardDrops.js";
+import {
+  createBossElementChoices,
+  getBaseElement,
+  getOwnedBallElementIds,
+} from "../data/baseElements.js";
+import {
+  getActiveElementCombo,
+  getElementCombo,
+  listMatchingElementCombos,
+} from "../data/elementCombos.js";
+import { BOSS_COIN_REWARD, getRewardStyle } from "../data/rewardDrops.js";
+import { getPermanentUpgrade, getPermanentUpgradeCost } from "../data/permanentUpgrades.js";
 
 const BASE_STATS = {
   paddleWidth: 80,
@@ -80,6 +91,8 @@ export class Game {
     this.lastRunSummary = null;
     this.hitEventBudget = { secondary: 0, maxSecondary: BASE_STATS.maxSecondaryHitEvents };
     this.hitFeedback = null;
+    this.comboReveal = null;
+    this.comboRevealQueue = [];
   }
 
   boot() {
@@ -95,6 +108,10 @@ export class Game {
     this.elapsed += delta;
     this.debug.update(delta);
     this.updateHitFeedback(delta);
+    const comboRevealWasActive = this.mode === "playing" && Boolean(this.comboReveal);
+    if (comboRevealWasActive) {
+      this.updateComboReveal(delta);
+    }
 
     if (!this.input.isFormFocused()) {
       if (this.mode === "playing" && this.input.consumePressed("Escape")) {
@@ -106,7 +123,7 @@ export class Game {
       }
     }
 
-    if (this.mode === "playing") {
+    if (this.mode === "playing" && !comboRevealWasActive && !this.comboReveal) {
       this.updatePlaying(delta);
     }
 
@@ -133,7 +150,11 @@ export class Game {
       currentLevel: 1,
       lives: 3,
       runUpgrades: [],
+      runScopedUpgrades: {},
       temporaryUpgrades: [],
+      ownedElements: [],
+      activeComboId: null,
+      discoveredComboIds: [],
       coinsEarned: 0,
       pendingReward: null,
       startedAt: now,
@@ -177,6 +198,10 @@ export class Game {
   openSettings() {
     this.lastPlayableMode = this.mode;
     this.setMode("settings");
+  }
+
+  openStore() {
+    this.setMode("store");
   }
 
   closeSettings() {
@@ -230,13 +255,23 @@ export class Game {
     this.resetSave();
   }
 
-  startLevel(levelNumber) {
+  startLevel(levelNumber, { autoLaunch = false, clearNotification = null } = {}) {
+    this.updateRunCombo({ reveal: false });
     this.stats = this.calculateStats();
-    this.level = this.levelSystem.createLevel(levelNumber, this.stats, this.activeRun?.seed);
+    this.level = this.levelSystem.createLevel(levelNumber, this.stats, this.activeRun?.seed, {
+      profilePermanentUpgrades: this.profile?.permanentUpgrades || {},
+      runScopedUpgrades: this.activeRun?.runScopedUpgrades || {},
+    });
     this.clearTimer = 0;
     this.levelShieldCharges = this.stats.shieldSaves || 0;
     this.persist();
     this.setMode("playing");
+    if (clearNotification) {
+      this.showClearNotification(clearNotification);
+    }
+    if (autoLaunch) {
+      this.launchStuckBalls();
+    }
   }
 
   calculateStats({ includeStaged = false } = {}) {
@@ -249,12 +284,21 @@ export class Game {
       ...(this.activeRun?.temporaryUpgrades || []),
       ...(staged?.temporaryUpgrades || []),
     ];
+    const runScopedUpgrades = mergeStackMaps(
+      this.activeRun?.runScopedUpgrades,
+      staged?.runScopedUpgrades,
+    );
     const stats = this.upgradeSystem.applyToStats(
       BASE_STATS,
       runUpgrades,
       temporaryUpgrades,
       this.profile?.permanentUpgrades || {},
+      runScopedUpgrades,
     );
+    applyOwnedElementStats(stats, this.activeRun?.ownedElements || []);
+    const activeCombo = getActiveElementCombo(this.activeRun?.ownedElements || []);
+    stats.activeComboId = activeCombo?.id || null;
+    stats.activeCombo = activeCombo;
     const levelNumber = this.activeRun?.currentLevel || 1;
     const assistRatio = getStarterAssistRatio(levelNumber);
 
@@ -363,6 +407,9 @@ export class Game {
     if (target.kind === "brick" && target.reward) {
       this.rewardSystem.spawnPickupFromBrick(this, target);
     }
+    if (target.kind === "boss") {
+      this.awardBossClearCoins();
+    }
   }
 
   collectPickup(pickup, { auto = false, suppressText = false } = {}) {
@@ -371,14 +418,17 @@ export class Game {
     pickup.active = false;
     this.applyReward(pickup.reward, { immediate: true, stageForCommit: true });
     const entry = this.logCollectedReward(pickup.reward, { auto });
+    const impactX = this.level?.paddle?.x ?? pickup.x;
+    const impactY = this.level?.paddle?.y ?? pickup.y;
     if (!suppressText && entry) {
       this.showRewardText(entry.text, {
-        x: this.level?.paddle?.x ?? pickup.x,
-        y: this.level?.paddle ? this.level.paddle.y - 34 : pickup.y,
+        x: impactX,
+        y: this.level?.paddle ? impactY - 34 : pickup.y,
         color: entry.color,
       });
     }
-    this.particleSystem.hit(this.level, pickup.x, pickup.y, "rgba(255, 232, 150, 0.95)");
+    this.particleSystem.hit(this.level, impactX, impactY, "rgba(255, 232, 150, 0.95)");
+    this.particleSystem.burst(this.level, impactX, impactY - 4, entry?.color || "rgba(255, 232, 150, 0.95)");
     this.audio.play("select");
     return entry;
   }
@@ -453,6 +503,15 @@ export class Game {
     });
   }
 
+  showClearNotification(text) {
+    if (!this.level || !text) return;
+    this.showRewardText(text, {
+      x: 480,
+      y: 150,
+      color: "rgba(238, 248, 234, 0.95)",
+    });
+  }
+
   applyReward(reward, { immediate = false, stageForCommit = false, commitNow = false } = {}) {
     if (!reward) return;
 
@@ -466,6 +525,17 @@ export class Game {
         this.addPermanentUpgrade(reward.permanentId || reward.id);
       } else if (stageForCommit && this.level) {
         this.level.stagedRewards.permanentUpgrades.push(reward.permanentId || reward.id);
+      }
+      return;
+    }
+
+    if (reward.kind === "elementChoice") {
+      const added = this.addRunElement(reward.elementId);
+      if (added) {
+        this.updateRunCombo({ reveal: true });
+        if (immediate && this.mode === "playing") {
+          this.applyCurrentLevelStats();
+        }
       }
       return;
     }
@@ -491,15 +561,41 @@ export class Game {
       return;
     }
 
+    if (reward.kind === "runScopedUpgrade") {
+      const upgradeId = reward.upgradeId || reward.id;
+      const selected = mergeStackMaps(
+        this.activeRun?.runScopedUpgrades,
+        this.level?.stagedRewards?.runScopedUpgrades,
+      );
+      if (!this.upgradeSystem.canTakeRunScopedUpgrade(
+        upgradeId,
+        this.profile?.permanentUpgrades || {},
+        selected,
+      )) {
+        return;
+      }
+      if (commitNow) {
+        this.addRunScopedUpgrade(upgradeId);
+      } else if (stageForCommit && this.level) {
+        incrementStack(this.level.stagedRewards.runScopedUpgrades, upgradeId);
+      }
+      if (immediate) {
+        this.applyCurrentLevelStats();
+      }
+      return;
+    }
+
     if (reward.kind === "temporaryUpgrade" || reward.kind === "instant") {
-      const duration = Math.max(0, reward.durationLevels ?? (reward.kind === "instant" ? 0 : 1));
+      const duration = reward.kind === "temporaryUpgrade"
+        ? 0
+        : Math.max(0, reward.durationLevels ?? 0);
       const entry = {
         id: reward.id,
         label: reward.label || reward.id,
         remainingLevels: commitNow ? duration : Math.max(0, duration - 1),
         statModifiers: { ...(reward.statModifiers || {}) },
       };
-      if (commitNow) {
+      if (commitNow && entry.remainingLevels > 0) {
         this.activeRun.temporaryUpgrades.push(entry);
       } else if (stageForCommit && this.level) {
         this.level.stagedRewards.temporaryUpgrades.push(entry);
@@ -522,8 +618,144 @@ export class Game {
   }
 
   addPermanentUpgrade(permanentId) {
-    if (!permanentId) return;
-    this.profile.permanentUpgrades[permanentId] = (this.profile.permanentUpgrades[permanentId] || 0) + 1;
+    const upgrade = getPermanentUpgrade(permanentId);
+    if (!upgrade) return false;
+    const current = this.profile.permanentUpgrades[permanentId] || 0;
+    if (current >= upgrade.maxStacks) return false;
+    this.profile.permanentUpgrades[permanentId] = current + 1;
+    return true;
+  }
+
+  purchasePermanentUpgrade(permanentId) {
+    const upgrade = getPermanentUpgrade(permanentId);
+    if (!upgrade) return false;
+    const owned = this.profile.permanentUpgrades[permanentId] || 0;
+    if (owned >= upgrade.maxStacks) return false;
+    const cost = getPermanentUpgradeCost(upgrade, owned);
+    if (this.profile.coins < cost) return false;
+
+    this.profile.coins -= cost;
+    this.addPermanentUpgrade(permanentId);
+    this.persist();
+    this.audio.play("select");
+    this.setMode("store");
+    return true;
+  }
+
+  addRunScopedUpgrade(upgradeId) {
+    if (!upgradeId || !this.activeRun) return;
+    if (!this.upgradeSystem.canTakeRunScopedUpgrade(
+      upgradeId,
+      this.profile?.permanentUpgrades || {},
+      this.activeRun.runScopedUpgrades || {},
+    )) {
+      return;
+    }
+    this.activeRun.runScopedUpgrades = this.activeRun.runScopedUpgrades || {};
+    incrementStack(this.activeRun.runScopedUpgrades, upgradeId);
+  }
+
+  addRunElement(elementId) {
+    if (!this.activeRun || !getBaseElement(elementId)) return false;
+    this.activeRun.ownedElements = this.activeRun.ownedElements || [];
+    if (this.activeRun.ownedElements.includes(elementId)) return false;
+    this.activeRun.ownedElements.push(elementId);
+    return true;
+  }
+
+  updateRunCombo({ reveal = false } = {}) {
+    if (!this.activeRun) return null;
+    this.activeRun.ownedElements = this.activeRun.ownedElements || [];
+    const previousComboId = this.activeRun.activeComboId || null;
+    const matchingCombos = listMatchingElementCombos(this.activeRun.ownedElements);
+    const activeCombo = getActiveElementCombo(this.activeRun.ownedElements);
+    const discoveredIds = new Set(
+      (this.activeRun.discoveredComboIds || []).filter((comboId) => getElementCombo(comboId)),
+    );
+    const newlyDiscovered = matchingCombos.filter((combo) => !discoveredIds.has(combo.id));
+
+    for (const combo of newlyDiscovered) {
+      discoveredIds.add(combo.id);
+    }
+
+    this.activeRun.activeComboId = activeCombo?.id || null;
+    this.activeRun.discoveredComboIds = [...discoveredIds];
+
+    if (reveal && activeCombo && activeCombo.id !== previousComboId) {
+      const revealCombos = selectComboReveals(newlyDiscovered, activeCombo);
+      this.queueComboReveals(revealCombos.length > 0 ? revealCombos : [activeCombo]);
+    }
+
+    return activeCombo;
+  }
+
+  queueComboReveals(combos = []) {
+    const queuedIds = new Set(this.comboRevealQueue.map((combo) => combo.id));
+    if (this.comboReveal) {
+      queuedIds.add(this.comboReveal.id);
+    }
+
+    for (const combo of combos) {
+      if (!combo || queuedIds.has(combo.id)) continue;
+      this.comboRevealQueue.push(combo);
+      queuedIds.add(combo.id);
+    }
+
+    this.startNextComboReveal();
+  }
+
+  startNextComboReveal() {
+    if (this.comboReveal || this.comboRevealQueue.length === 0) return;
+    const combo = this.comboRevealQueue.shift();
+    const maxLife = this.settings?.reducedMotion ? 1.15 : 1.65;
+    this.comboReveal = {
+      id: combo.id,
+      name: combo.name,
+      description: combo.description,
+      order: combo.order,
+      life: maxLife,
+      maxLife,
+    };
+    this.triggerComboRevealBurst(combo);
+  }
+
+  updateComboReveal(delta) {
+    if (!this.comboReveal) return;
+    this.comboReveal.life -= delta;
+    if (this.comboReveal.life > 0) return;
+
+    this.comboReveal = null;
+    this.startNextComboReveal();
+  }
+
+  triggerComboRevealBurst(combo) {
+    if (!this.level) return;
+    const color = combo.order >= 4
+      ? "rgba(255, 232, 150, 0.96)"
+      : combo.order >= 3
+        ? "rgba(134, 215, 255, 0.95)"
+        : "rgba(97, 215, 198, 0.95)";
+    this.particleSystem.burst(this.level, 480, 300, color);
+    this.particleSystem.burst(this.level, 480, 300, "rgba(255, 255, 255, 0.88)");
+    this.showRewardText(`${combo.name} Combo`, {
+      x: 480,
+      y: 188,
+      color,
+    });
+    this.audio.play("hit");
+  }
+
+  awardBossClearCoins() {
+    if (!this.level || this.level.bossClearCoinsAwarded) return 0;
+    this.level.bossClearCoinsAwarded = true;
+    this.addCoins(BOSS_COIN_REWARD, true);
+    this.showRewardText(`+${BOSS_COIN_REWARD} Coins`, {
+      x: 480,
+      y: 128,
+      color: "rgba(255, 232, 150, 0.95)",
+    });
+    this.persist();
+    return BOSS_COIN_REWARD;
   }
 
   applyCurrentLevelStats() {
@@ -698,7 +930,10 @@ export class Game {
   }
 
   respawnBalls() {
-    const freshLevel = this.levelSystem.createLevel(this.activeRun.currentLevel, this.stats, this.activeRun.seed);
+    const freshLevel = this.levelSystem.createLevel(this.activeRun.currentLevel, this.stats, this.activeRun.seed, {
+      profilePermanentUpgrades: this.profile?.permanentUpgrades || {},
+      runScopedUpgrades: this.activeRun?.runScopedUpgrades || {},
+    });
     freshLevel.balls.forEach((ball, index) => {
       ball.stickTo(this.level.paddle);
       ball.x += (index - (freshLevel.balls.length - 1) / 2) * this.stats.ballRadius * 2.5;
@@ -709,7 +944,11 @@ export class Game {
 
   completeLevel() {
     const completedLevel = this.activeRun.currentLevel;
+    const wasBossLevel = this.level?.definition?.isBossLevel === true;
     this.autoCollectPendingPickups();
+    if (wasBossLevel) {
+      this.awardBossClearCoins();
+    }
     this.decayCommittedTemporaryUpgrades();
     this.commitStagedRewards();
     this.profile.highestLevelUnlocked = Math.max(
@@ -732,20 +971,27 @@ export class Game {
       return;
     }
 
-    const permanentEarnedThisLevel = (this.level?.stagedRewards?.permanentUpgrades || []).length > 0;
-    const choices = this.rewardSystem.offerStageBonusChoices({
+    if (!wasBossLevel) {
+      this.activeRun.currentLevel = Math.min(completedLevel + 1, CAMPAIGN_MAX_LEVEL);
+      this.activeRun.pendingReward = null;
+      this.persist();
+      this.startLevel(this.activeRun.currentLevel, {
+        autoLaunch: true,
+        clearNotification: `Level ${completedLevel} Clear`,
+      });
+      return;
+    }
+
+    const choices = createBossElementChoices({
       seed: this.activeRun.seed,
       levelNumber: completedLevel,
-      permanentAlreadyEarned: permanentEarnedThisLevel,
-      profilePermanentUpgrades: this.profile.permanentUpgrades,
+      ownedElements: this.activeRun.ownedElements || [],
     });
-    const collectedSummary = summarizeCollectedRewards(this.level?.collectedRewardLog || []);
     this.activeRun.pendingReward = {
-      kind: "stageBonus",
+      kind: "bossElementChoice",
       levelCompleted: completedLevel,
       choices,
-      collectedSummary,
-      rewardMode: choices.some((choice) => choice.kind === "permanentUpgrade") ? "permanent" : "temporary",
+      coinsAwarded: BOSS_COIN_REWARD,
     };
     this.persist();
     this.setMode("upgradeSelect");
@@ -767,6 +1013,12 @@ export class Game {
     for (const upgradeId of staged.runUpgrades) {
       if (this.upgradeSystem.canTakeUpgrade(upgradeId, this.activeRun.runUpgrades)) {
         this.activeRun.runUpgrades.push(upgradeId);
+      }
+    }
+
+    for (const [upgradeId, count] of Object.entries(staged.runScopedUpgrades || {})) {
+      for (let index = 0; index < count; index += 1) {
+        this.addRunScopedUpgrade(upgradeId);
       }
     }
 
@@ -804,7 +1056,7 @@ export class Game {
     const allowed = Boolean(choice);
     if (!pending || !allowed) return;
 
-    if (pending.kind === "stageBonus" || choice.kind) {
+    if (pending.kind === "stageBonus" || pending.kind === "bossElementChoice" || choice.kind) {
       this.applyReward(choice, { commitNow: true });
     } else {
       this.activeRun.runUpgrades.push(upgradeId);
@@ -814,7 +1066,10 @@ export class Game {
     this.activeRun.pendingReward = null;
     this.persist();
     this.audio.play("select");
-    this.startLevel(this.activeRun.currentLevel);
+    this.startLevel(this.activeRun.currentLevel, {
+      autoLaunch: true,
+      clearNotification: pending.kind === "bossElementChoice" ? `Boss Clear +${pending.coinsAwarded || 0} Coins` : null,
+    });
   }
 
   gameOver() {
@@ -858,11 +1113,54 @@ function createDuplicateRunFallbackReward() {
   };
 }
 
+function mergeStackMaps(...maps) {
+  const merged = {};
+  for (const map of maps) {
+    if (!map || typeof map !== "object") continue;
+    for (const [id, count] of Object.entries(map)) {
+      const value = Math.trunc(Number(count) || 0);
+      if (value > 0) {
+        merged[id] = (merged[id] || 0) + value;
+      }
+    }
+  }
+  return merged;
+}
+
+function incrementStack(map, id, amount = 1) {
+  if (!map || !id) return;
+  const value = Math.trunc(Number(amount) || 0);
+  if (value <= 0) return;
+  map[id] = (map[id] || 0) + value;
+}
+
+function selectComboReveals(newlyDiscovered, activeCombo) {
+  if (!activeCombo) return [];
+  const sameOrder = newlyDiscovered
+    .filter((combo) => combo.order === activeCombo.order)
+    .sort((a, b) => a.priority - b.priority);
+  return sameOrder.length > 0 ? sameOrder : [activeCombo];
+}
+
+function applyOwnedElementStats(stats, ownedElements = []) {
+  const ownedBallElements = getOwnedBallElementIds(ownedElements);
+  if (ownedBallElements.length === 0) return;
+
+  const activeElements = new Set((stats.activeElements || []).filter((id) => id && id !== "normal"));
+  for (const elementId of ownedBallElements) {
+    activeElements.add(elementId);
+  }
+  stats.activeElements = [...activeElements];
+  stats.element = stats.activeElements[0] || "normal";
+}
+
 function formatRewardText(reward, { auto = false } = {}) {
   const prefix = auto ? "Auto: " : "";
   const label = reward.label || reward.name || reward.id;
   if (reward.kind === "permanentUpgrade") return `${prefix}Permanent: ${label}`;
+  if (reward.kind === "elementChoice") return `${prefix}Element: ${label}`;
   if (reward.kind === "runUpgrade") return `${prefix}Run: ${label}`;
+  if (reward.kind === "runScopedUpgrade") return `${prefix}Run: ${label}`;
   if (reward.kind === "temporaryUpgrade") {
     const duration = reward.durationLevels || 1;
     return `${prefix}Temp: ${label} (${duration} ${duration === 1 ? "level" : "levels"})`;

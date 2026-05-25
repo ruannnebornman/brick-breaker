@@ -1,9 +1,15 @@
 import { CAMPAIGN_MAX_LEVEL } from "../data/levels.js";
+import { BASE_ELEMENTS } from "../data/baseElements.js";
+import { getActiveElementCombo, getElementCombo, listMatchingElementCombos } from "../data/elementCombos.js";
+import { PERMANENT_UPGRADES, RUN_SCOPED_UPGRADES } from "../data/permanentUpgrades.js";
 
-const STORAGE_KEY = "brickBreakerElementalBarrage.save.v1";
+const STORAGE_KEY = "brickBreakerElementalBarrage.save.v26";
 const BACKUP_KEY = `${STORAGE_KEY}.backup`;
-const SAVE_VERSION = 1;
-const CONFIG_VERSION = "campaign-100";
+const SAVE_VERSION = 26;
+const CONFIG_VERSION = "v0.26";
+const PERMANENT_UPGRADE_MAX_STACKS = new Map(PERMANENT_UPGRADES.map((upgrade) => [upgrade.id, upgrade.maxStacks]));
+const RUN_SCOPED_UPGRADE_MAX_STACKS = new Map(RUN_SCOPED_UPGRADES.map((upgrade) => [upgrade.id, upgrade.maxStacks]));
+const BASE_ELEMENT_IDS = new Set(BASE_ELEMENTS.map((element) => element.id));
 
 export class SaveSystem {
   load() {
@@ -60,7 +66,7 @@ export class SaveSystem {
         coins: 0,
         shards: 0,
         permanentUpgrades: {},
-        unlockedElements: ["normal", "fire", "lightning", "frost", "acid"],
+        unlockedElements: ["normal"],
         completedBosses: [],
         bestLevelTimes: {},
         totalVictories: 0,
@@ -102,9 +108,7 @@ function normalizeProfile(defaultProfile, profile) {
     highestLevelUnlocked: clampInt(source.highestLevelUnlocked, 1, CAMPAIGN_MAX_LEVEL),
     coins: nonNegativeNumber(source.coins),
     shards: nonNegativeNumber(source.shards),
-    permanentUpgrades: source.permanentUpgrades && typeof source.permanentUpgrades === "object"
-      ? source.permanentUpgrades
-      : {},
+    permanentUpgrades: normalizeUpgradeStackMap(source.permanentUpgrades, PERMANENT_UPGRADE_MAX_STACKS),
     unlockedElements: Array.isArray(source.unlockedElements) ? source.unlockedElements : defaultProfile.unlockedElements,
     completedBosses: Array.isArray(source.completedBosses) ? source.completedBosses : [],
     bestLevelTimes: source.bestLevelTimes && typeof source.bestLevelTimes === "object" ? source.bestLevelTimes : {},
@@ -116,6 +120,8 @@ function normalizeActiveRun(activeRun) {
   if (!activeRun || activeRun.exists !== true) {
     return null;
   }
+  const ownedElements = normalizeOwnedElements(activeRun.ownedElements);
+  const activeCombo = getActiveElementCombo(ownedElements);
   return {
     exists: true,
     runId: String(activeRun.runId || crypto.randomUUID?.() || Date.now()),
@@ -123,7 +129,11 @@ function normalizeActiveRun(activeRun) {
     currentLevel: clampInt(activeRun.currentLevel, 1, CAMPAIGN_MAX_LEVEL),
     lives: clampInt(activeRun.lives, 0, 9),
     runUpgrades: Array.isArray(activeRun.runUpgrades) ? activeRun.runUpgrades : [],
-    temporaryUpgrades: normalizeTemporaryUpgrades(activeRun.temporaryUpgrades),
+    runScopedUpgrades: normalizeUpgradeStackMap(activeRun.runScopedUpgrades, RUN_SCOPED_UPGRADE_MAX_STACKS),
+    temporaryUpgrades: [],
+    ownedElements,
+    activeComboId: activeCombo?.id || null,
+    discoveredComboIds: normalizeDiscoveredComboIds(activeRun.discoveredComboIds, ownedElements, activeRun.activeComboId),
     coinsEarned: Number(activeRun.coinsEarned || 0),
     pendingReward: activeRun.pendingReward || null,
     startedAt: activeRun.startedAt || new Date().toISOString(),
@@ -131,21 +141,41 @@ function normalizeActiveRun(activeRun) {
   };
 }
 
-function normalizeTemporaryUpgrades(upgrades) {
-  if (!Array.isArray(upgrades)) return [];
-  return upgrades
-    .map((upgrade) => {
-      if (!upgrade || typeof upgrade !== "object") return null;
-      return {
-        id: String(upgrade.id || "temporary"),
-        label: String(upgrade.label || upgrade.id || "Temporary"),
-        remainingLevels: clampInt(upgrade.remainingLevels, 0, 20),
-        statModifiers: upgrade.statModifiers && typeof upgrade.statModifiers === "object"
-          ? { ...upgrade.statModifiers }
-          : {},
-      };
-    })
-    .filter((upgrade) => upgrade && upgrade.remainingLevels > 0);
+function normalizeUpgradeStackMap(stacks, maxStackById) {
+  if (!stacks || typeof stacks !== "object") return {};
+  const normalized = {};
+  for (const [id, value] of Object.entries(stacks)) {
+    if (!maxStackById.has(id)) continue;
+    const count = clampInt(value, 0, maxStackById.get(id));
+    if (count > 0) {
+      normalized[id] = count;
+    }
+  }
+  return normalized;
+}
+
+function normalizeOwnedElements(elements) {
+  if (!Array.isArray(elements)) return [];
+  return [...new Set(elements.map(String))].filter((id) => BASE_ELEMENT_IDS.has(id));
+}
+
+function normalizeDiscoveredComboIds(comboIds, ownedElements, activeComboId) {
+  const matchingIds = new Set(listMatchingElementCombos(ownedElements).map((combo) => combo.id));
+  const discovered = new Set();
+  const source = Array.isArray(comboIds) ? comboIds : [];
+
+  for (const comboId of source) {
+    const id = String(comboId);
+    if (matchingIds.has(id) && getElementCombo(id)) {
+      discovered.add(id);
+    }
+  }
+
+  if (activeComboId && matchingIds.has(String(activeComboId))) {
+    discovered.add(String(activeComboId));
+  }
+
+  return [...discovered];
 }
 
 function clampInt(value, min, max) {

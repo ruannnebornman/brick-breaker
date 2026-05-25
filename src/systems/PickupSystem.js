@@ -8,10 +8,11 @@ export class PickupSystem {
     for (const pickup of level.pickups) {
       if (!pickup.active || pickup.collected) continue;
       pickup.update(delta, level.paddle);
-      if (circleRectCollision(pickup, level.paddle.rect)) {
+      if (pickup.absorbComplete || circleRectCollision(pickup, level.paddle.rect)) {
         game.collectPickup(pickup);
         continue;
       }
+      if (pickup.flightMode === "absorb") continue;
       if (pickup.y - pickup.radius > 620) {
         pickup.active = false;
         pickup.missed = true;

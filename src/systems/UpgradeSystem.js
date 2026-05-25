@@ -1,5 +1,9 @@
 import { Random } from "../core/Random.js";
-import { getPermanentUpgrade } from "../data/permanentUpgrades.js";
+import {
+  getEffectiveStoreUpgradeStacks,
+  getRunScopedUpgrade,
+  PERMANENT_UPGRADES,
+} from "../data/permanentUpgrades.js";
 import { RUN_UPGRADES } from "../data/upgrades.js";
 
 export class UpgradeSystem {
@@ -15,7 +19,13 @@ export class UpgradeSystem {
     }, {});
   }
 
-  applyToStats(baseStats, runUpgrades = [], temporaryUpgrades = [], permanentUpgrades = {}) {
+  applyToStats(
+    baseStats,
+    runUpgrades = [],
+    temporaryUpgrades = [],
+    permanentUpgrades = {},
+    runScopedUpgrades = {},
+  ) {
     const stats = {
       ...baseStats,
       ballCount: 2,
@@ -31,10 +41,9 @@ export class UpgradeSystem {
       activeElements: [],
     };
 
-    for (const [upgradeId, count] of Object.entries(permanentUpgrades || {})) {
-      const upgrade = getPermanentUpgrade(upgradeId);
-      if (!upgrade) continue;
-      const stacks = Math.max(0, Math.min(Number(count) || 0, upgrade.maxStacks || 0));
+    const progressionStacks = this.getEffectiveProgressionStacks(permanentUpgrades, runScopedUpgrades);
+    for (const upgrade of PERMANENT_UPGRADES) {
+      const stacks = progressionStacks[upgrade.id] || 0;
       applyStackedModifiers(stats, upgrade.statModifiers || {}, stacks);
     }
 
@@ -64,6 +73,22 @@ export class UpgradeSystem {
     stats.cannonDamageMultiplier = Math.min(stats.cannonDamageMultiplier, 1.1);
     stats.cannonProjectileCount = Math.min(stats.cannonProjectileCount, 3);
     return stats;
+  }
+
+  getEffectiveProgressionStacks(permanentUpgrades = {}, runScopedUpgrades = {}) {
+    return PERMANENT_UPGRADES.reduce((stacks, upgrade) => {
+      const count = getEffectiveStoreUpgradeStacks(upgrade.id, permanentUpgrades, runScopedUpgrades);
+      if (count > 0) {
+        stacks[upgrade.id] = count;
+      }
+      return stacks;
+    }, {});
+  }
+
+  canTakeRunScopedUpgrade(upgradeId, permanentUpgrades = {}, runScopedUpgrades = {}) {
+    const upgrade = getRunScopedUpgrade(upgradeId);
+    if (!upgrade) return false;
+    return getEffectiveStoreUpgradeStacks(upgrade.permanentId, permanentUpgrades, runScopedUpgrades) < upgrade.maxStacks;
   }
 
   canTakeUpgrade(upgradeId, runUpgrades = []) {

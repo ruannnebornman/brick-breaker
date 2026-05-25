@@ -104,25 +104,25 @@ export const MVP_LEVELS = AUTHORED_LEVELS;
 const FIRST_THORN_HAZARD_LEVEL = 36;
 const SECOND_THORN_HAZARD_LEVEL = 48;
 
-export function getLevelDefinition(levelNumber, runSeed = 1) {
+export function getLevelDefinition(levelNumber, runSeed = 1, rewardContext = {}) {
   const safeLevel = clampLevel(levelNumber);
   const authored = AUTHORED_LEVELS.find((level) => level.levelNumber === safeLevel);
   if (authored) {
-    return attachRewardBlocks(cloneDefinition(authored), runSeed);
+    return attachRewardBlocks(cloneDefinition(authored), runSeed, rewardContext);
   }
 
   const boss = getBossDefinition(safeLevel);
   if (boss) {
-    return createBossLevel(boss, runSeed);
+    return createBossLevel(boss, runSeed, rewardContext);
   }
 
-  const generated = attachRewardBlocks(generateCampaignLevel(safeLevel, runSeed), runSeed);
+  const generated = attachRewardBlocks(generateCampaignLevel(safeLevel, runSeed), runSeed, rewardContext);
   const validation = validateLevelDefinition(generated);
   if (validation.valid) {
     return generated;
   }
 
-  return createFallbackLevel(safeLevel, runSeed, validation.errors);
+  return attachRewardBlocks(createFallbackLevel(safeLevel, runSeed, validation.errors), runSeed, rewardContext);
 }
 
 export function validateLevelDefinition(definition) {
@@ -370,7 +370,7 @@ function createFallbackLevel(levelNumber, runSeed, errors) {
   };
 }
 
-function createBossLevel(boss, runSeed) {
+function createBossLevel(boss, runSeed, rewardContext = {}) {
   const seed = levelSeed(runSeed, boss.level);
   return {
     levelNumber: boss.level,
@@ -382,7 +382,7 @@ function createBossLevel(boss, runSeed) {
     layoutPattern: boss.id,
     visualVariant: boss.visualVariant || "default",
     generated: true,
-    bricks: createBossRewardBricks(boss, seed),
+    bricks: createBossRewardBricks(boss, seed, rewardContext),
     enemies: [],
     hazards: [],
     boss: {
@@ -392,25 +392,34 @@ function createBossLevel(boss, runSeed) {
   };
 }
 
-function createBossRewardBricks(boss, seed) {
+function createBossRewardBricks(boss, seed, rewardContext = {}) {
   const count = getRewardBlockCount(boss.level, { isBossLevel: true });
   if (count <= 0) return [];
   const slots = [
     { x: 338, y: 252 },
     { x: 506, y: 252 },
   ];
-  return slots.slice(0, count).map((slot, index) => ({
-    type: "basic",
-    x: slot.x,
-    y: slot.y,
-    width: 116,
-    height: 34,
-    hp: 18 + Math.floor(boss.level / 10) * 3,
-    armor: Math.floor(boss.level / 30),
-    requiredForClear: true,
-    palette: { fill: "#6c5f3f", accent: "#ffe896" },
-    reward: createRewardForLevelSlot(boss.level, index, seed, { isBossLevel: true }),
-  }));
+  const reservedRunScopedUpgrades = {};
+  return slots.slice(0, count).map((slot, index) => {
+    const reward = createRewardForLevelSlot(boss.level, index, seed, {
+      ...rewardContext,
+      reservedRunScopedUpgrades,
+      isBossLevel: true,
+    });
+    reserveReward(reward, reservedRunScopedUpgrades);
+    return {
+      type: "basic",
+      x: slot.x,
+      y: slot.y,
+      width: 116,
+      height: 34,
+      hp: 18 + Math.floor(boss.level / 10) * 3,
+      armor: Math.floor(boss.level / 30),
+      requiredForClear: true,
+      palette: { fill: "#6c5f3f", accent: "#ffe896" },
+      reward,
+    };
+  });
 }
 
 function createGeneratedEnemies(levelNumber, rng) {
@@ -493,7 +502,7 @@ function createGeneratedBrick({ typeId, x, y, width, height, levelNumber, biome,
   };
 }
 
-function attachRewardBlocks(definition, runSeed) {
+function attachRewardBlocks(definition, runSeed, rewardContext = {}) {
   const rewardCount = getRewardBlockCount(definition.levelNumber, {
     isBossLevel: definition.isBossLevel === true,
   });
@@ -503,7 +512,7 @@ function attachRewardBlocks(definition, runSeed) {
   if (definition.bricks.length === 0 && definition.boss) {
     return {
       ...definition,
-      bricks: createBossCacheRewardBricks(definition.levelNumber, rewardCount, seed),
+      bricks: createBossCacheRewardBricks(definition.levelNumber, rewardCount, seed, rewardContext),
     };
   }
 
@@ -516,6 +525,7 @@ function attachRewardBlocks(definition, runSeed) {
     .map(({ index }) => index);
   const shuffled = shuffle(requiredIndices, rng).slice(0, rewardCount);
   const rewardIndices = new Set(shuffled);
+  const reservedRunScopedUpgrades = {};
   let slot = 0;
 
   return {
@@ -523,8 +533,11 @@ function attachRewardBlocks(definition, runSeed) {
     bricks: definition.bricks.map((brick, index) => {
       if (!rewardIndices.has(index)) return brick;
       const reward = createRewardForLevelSlot(definition.levelNumber, slot, seed, {
+        ...rewardContext,
+        reservedRunScopedUpgrades,
         isBossLevel: definition.isBossLevel === true,
       });
+      reserveReward(reward, reservedRunScopedUpgrades);
       slot += 1;
       return {
         ...brick,
@@ -534,23 +547,37 @@ function attachRewardBlocks(definition, runSeed) {
   };
 }
 
-function createBossCacheRewardBricks(levelNumber, rewardCount, seed) {
+function createBossCacheRewardBricks(levelNumber, rewardCount, seed, rewardContext = {}) {
   const slots = [
     { x: 338, y: 252 },
     { x: 506, y: 252 },
   ];
-  return slots.slice(0, rewardCount).map((slot, index) => ({
-    type: "basic",
-    x: slot.x,
-    y: slot.y,
-    width: 116,
-    height: 34,
-    hp: 14 + Math.floor(levelNumber / 10) * 3,
-    armor: Math.floor(levelNumber / 30),
-    requiredForClear: true,
-    palette: { fill: "#6c5f3f", accent: "#ffe896" },
-    reward: cloneReward(createRewardForLevelSlot(levelNumber, index, seed, { isBossLevel: true })),
-  }));
+  const reservedRunScopedUpgrades = {};
+  return slots.slice(0, rewardCount).map((slot, index) => {
+    const reward = createRewardForLevelSlot(levelNumber, index, seed, {
+      ...rewardContext,
+      reservedRunScopedUpgrades,
+      isBossLevel: true,
+    });
+    reserveReward(reward, reservedRunScopedUpgrades);
+    return {
+      type: "basic",
+      x: slot.x,
+      y: slot.y,
+      width: 116,
+      height: 34,
+      hp: 14 + Math.floor(levelNumber / 10) * 3,
+      armor: Math.floor(levelNumber / 30),
+      requiredForClear: true,
+      palette: { fill: "#6c5f3f", accent: "#ffe896" },
+      reward: cloneReward(reward),
+    };
+  });
+}
+
+function reserveReward(reward, reservedRunScopedUpgrades) {
+  if (reward?.kind !== "runScopedUpgrade" || !reward.upgradeId) return;
+  reservedRunScopedUpgrades[reward.upgradeId] = (reservedRunScopedUpgrades[reward.upgradeId] || 0) + 1;
 }
 
 function getBrickPalette(typeId, patternId, biome = BIOMES.grasslands_training_ruins) {
