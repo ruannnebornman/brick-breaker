@@ -1,6 +1,6 @@
 # Upgrade Catalog
 
-Status: Design catalog. This shows the chosen upgrade split, run-scoped brick drops, and boss element choice system. No gameplay code has been changed to match this yet.
+Status: v0.26 implementation catalog plus future design notes. The `Current Code Behavior` columns describe what the code actually does today.
 
 Core direction:
 - Permanent upgrades are long-term stat, utility, cannon, safety, and economy upgrades.
@@ -91,20 +91,27 @@ Family rarity:
 
 If a family has no unowned elements left, the boss choice generator rerolls or normalizes into families that still have unowned elements.
 
-| Element | ID | Icon | Family | Identity | Brick Breaker Role | Run Behavior |
-| --- | --- | --- | --- | --- | --- | --- |
-| Fire | `element_fire` | `F` | Classic | Heat, burn, eruption | Damage over time, explosive clears | Adds burn effects, flame spread hooks, and fire combo access. |
-| Water | `element_water` | `W` | Classic | Flow, soak, spread | Chaining, cleansing, splash damage | Adds splash effects, wet marks, cleanse hooks, and water combo access. |
-| Wind | `element_wind` | `N` | Classic | Motion, lift, direction | Ball speed, curve, multiball nudges | Adds gust effects, directional nudges, curve hooks, and wind combo access. |
-| Earth | `element_earth` | `E` | Classic | Stone, weight, armor | Durability, shields, impact damage | Adds heavy impacts, tremor hooks, defensive hooks, and earth combo access. |
-| Spark | `element_spark` | `K` | Arcade Physics | Energy, charge, chain reactions | Arcs, speed, conductive hits | Adds chain arcs, charge marks, speed hooks, and spark combo access. |
-| Resin | `element_resin` | `R` | Arcade Physics | Sticky growth, binding | Slows, traps, coats bricks | Adds sticky coatings, linked-brick hooks, slow zones, and resin combo access. |
-| Echo | `element_echo` | `O` | Arcade Physics | Sound, vibration, repetition | Delayed hits, pulse waves | Adds delayed repeat-hit hooks, pulse waves, and echo combo access. |
-| Gravity | `element_gravity` | `G` | Arcade Physics | Pull, mass, orbit | Curve shots, wells, compression | Adds gravity wells, pull effects, orbit hooks, and gravity combo access. |
-| Ash | `element_ash` | `A` | Mystic Material | Decay, ember, erosion | Weakens bricks, spreads ruin | Adds decay marks, armor weakening hooks, and ash combo access. |
-| Glass | `element_glass` | `L` | Mystic Material | Reflection, fracture, prism | Splitting, ricochet, crit shards | Adds shard splitting, ricochet hooks, prism effects, and glass combo access. |
-| Mist | `element_mist` | `M` | Mystic Material | Haze, diffusion, concealment | Phasing, soft spread, blur effects | Adds haze fields, phase hooks, soft area damage, and mist combo access. |
-| Iron | `element_iron` | `I` | Mystic Material | Metal, magnetism, force | Armor, attraction, heavy impact | Adds magnetic pull, heavy impact hooks, armor interactions, and iron combo access. |
+Implementation note:
+- `addRunElement()` stores the `element_*` ID on `activeRun.ownedElements`.
+- `applyOwnedElementStats()` maps owned base elements into ball element IDs on `stats.activeElements`.
+- The first owned ball element becomes `stats.element`, which controls the primary ball/projectile visual, trail color, hit color, base damage multiplier, and target weakness/resistance lookup.
+- `ElementSystem.applyElementEffect()` only has bespoke status logic for legacy Fire/Lightning/Frost/Acid effects, and Fire only burns when `game.stats.burnPower > 0`. Boss-picked Fire does not add `burnPower`, so Fire does not burn by itself in v0.26.
+- Non-primary owned elements are still listed in `stats.activeElements` for HUD/combo detection, but most do not currently add hit behavior.
+
+| Element | ID | Icon | Family | Identity | Brick Breaker Role | Run Behavior | Current Code Behavior |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Fire | `element_fire` | `F` | Classic | Heat, burn, eruption | Damage over time, explosive clears | Adds burn effects, flame spread hooks, and fire combo access. | Adds `fire` to `stats.activeElements` and combo detection. If first owned, becomes primary `stats.element` for Fire visuals and weakness/resistance lookup. Does not burn unless some other upgrade adds `burnPower > 0`; boss Fire does not. |
+| Water | `element_water` | `W` | Classic | Flow, soak, spread | Chaining, cleansing, splash damage | Adds splash effects, wet marks, cleanse hooks, and water combo access. | Adds `water` to `stats.activeElements` and combo detection. If first owned, gives Water visuals and weakness/resistance lookup. No splash, cleanse, wet mark, or status code yet. |
+| Wind | `element_wind` | `N` | Classic | Motion, lift, direction | Ball speed, curve, multiball nudges | Adds gust effects, directional nudges, curve hooks, and wind combo access. | Adds `wind` to `stats.activeElements` and combo detection. If first owned, gives Wind visuals and weakness/resistance lookup. No speed, curve, gust, or nudge code yet. |
+| Earth | `element_earth` | `E` | Classic | Stone, weight, armor | Durability, shields, impact damage | Adds heavy impacts, tremor hooks, defensive hooks, and earth combo access. | Adds `earth` to `stats.activeElements` and combo detection. If first owned, gives Earth visuals, weakness/resistance lookup, and `baseDamageMultiplier: 1.02`. No tremor, shield, or armor code yet. |
+| Spark | `element_spark` | `K` | Arcade Physics | Energy, charge, chain reactions | Arcs, speed, conductive hits | Adds chain arcs, charge marks, speed hooks, and spark combo access. | Adds `spark` to `stats.activeElements` and combo detection. If first owned, gives Spark visuals, weakness/resistance lookup, and `baseDamageMultiplier: 0.98`. No arc/chain/static code yet; legacy chain code is for `lightning`, not `spark`. |
+| Resin | `element_resin` | `R` | Arcade Physics | Sticky growth, binding | Slows, traps, coats bricks | Adds sticky coatings, linked-brick hooks, slow zones, and resin combo access. | Adds `resin` to `stats.activeElements` and combo detection. If first owned, gives Resin visuals and weakness/resistance lookup. No sticky, slow, coating, or linked-brick code yet. |
+| Echo | `element_echo` | `O` | Arcade Physics | Sound, vibration, repetition | Delayed hits, pulse waves | Adds delayed repeat-hit hooks, pulse waves, and echo combo access. | Adds `echo` to `stats.activeElements` and combo detection. If first owned, gives Echo visuals and weakness/resistance lookup. No repeat-hit or pulse code yet. |
+| Gravity | `element_gravity` | `G` | Arcade Physics | Pull, mass, orbit | Curve shots, wells, compression | Adds gravity wells, pull effects, orbit hooks, and gravity combo access. | Adds `gravity` to `stats.activeElements` and combo detection. If first owned, gives Gravity visuals, weakness/resistance lookup, and `baseDamageMultiplier: 1.01`. No pull, curve, orbit, or compression code yet. |
+| Ash | `element_ash` | `A` | Mystic Material | Decay, ember, erosion | Weakens bricks, spreads ruin | Adds decay marks, armor weakening hooks, and ash combo access. | Adds `ash` to `stats.activeElements` and combo detection. If first owned, gives Ash visuals and weakness/resistance lookup. No decay or armor-weakening code yet. |
+| Glass | `element_glass` | `L` | Mystic Material | Reflection, fracture, prism | Splitting, ricochet, crit shards | Adds shard splitting, ricochet hooks, prism effects, and glass combo access. | Adds `glass` to `stats.activeElements` and combo detection. If first owned, gives Glass visuals, weakness/resistance lookup, and `baseDamageMultiplier: 0.99`. No split, ricochet, or prism code yet. |
+| Mist | `element_mist` | `M` | Mystic Material | Haze, diffusion, concealment | Phasing, soft spread, blur effects | Adds haze fields, phase hooks, soft area damage, and mist combo access. | Adds `mist` to `stats.activeElements` and combo detection. If first owned, gives Mist visuals, weakness/resistance lookup, and `baseDamageMultiplier: 0.98`. No haze, phase, blur, or soft area damage code yet. |
+| Iron | `element_iron` | `I` | Mystic Material | Metal, magnetism, force | Armor, attraction, heavy impact | Adds magnetic pull, heavy impact hooks, armor interactions, and iron combo access. | Adds `iron` to `stats.activeElements` and combo detection. If first owned, gives Iron visuals, weakness/resistance lookup, and `baseDamageMultiplier: 1.03`. No magnet, armor, or heavy-impact code yet. |
 
 ## Element Combo Rules
 
@@ -128,114 +135,118 @@ Activation rule:
 - After the reveal, active elements and the active combo appear in the same side UI panel.
 - Base elements show compact icons/statuses; the active combo shows its name and catalog description.
 - Combo reactions are not separate reward picks.
+- Current code: combos are detection, reveal, save state, and HUD display only. There is no combo-specific damage, movement, status, board clear, or special reaction hook in `ElementSystem`, `CollisionSystem`, or `BossSystem` yet.
 
 ## Two-Type Combo Reactions
 
+Column shorthand:
+- `Detection/UI only` means the combo exists in `ELEMENT_COMBOS`, can be selected by `getActiveElementCombo()`, writes `activeRun.activeComboId`, queues the pause/reveal overlay, and appears in the HUD. It does not currently change damage, movement, statuses, or target behavior.
+
 ### Classic + Classic
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Fire + Water | Steam | Creates fog clouds that hide brick states but deal area tick damage. |
-| Fire + Wind | Wildfire | Flames spread rapidly across adjacent bricks after each bounce. |
-| Fire + Earth | Magma | Bricks melt into lava zones that damage nearby bricks over time. |
-| Water + Wind | Tempest | Ball gains swirling movement and splash damage on impact. |
-| Water + Earth | Mud | Slows ball briefly but makes hits heavier and more damaging. |
-| Wind + Earth | Duststorm | Creates abrasive clouds that chip many bricks at once. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Fire + Water | Steam | Creates fog clouds that hide brick states but deal area tick damage. | Detection/UI only. |
+| Fire + Wind | Wildfire | Flames spread rapidly across adjacent bricks after each bounce. | Detection/UI only. |
+| Fire + Earth | Magma | Bricks melt into lava zones that damage nearby bricks over time. | Detection/UI only. |
+| Water + Wind | Tempest | Ball gains swirling movement and splash damage on impact. | Detection/UI only. |
+| Water + Earth | Mud | Slows ball briefly but makes hits heavier and more damaging. | Detection/UI only. |
+| Wind + Earth | Duststorm | Creates abrasive clouds that chip many bricks at once. | Detection/UI only. |
 
 ### Arcade + Arcade
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Spark + Resin | Ambercharge | Sticky conductive arcs jump between coated bricks. |
-| Spark + Echo | Thunderloop | Hits repeat after a delay, creating rhythm-chain damage. |
-| Spark + Gravity | Magnetar | Ball curves toward nearby bricks with charged gravity. |
-| Resin + Echo | Harmonic Bloom | Resonant cracks spread outward from sticky impact points. |
-| Resin + Gravity | Tar Pit | Creates slow gravity sludge zones that increase impact damage. |
-| Echo + Gravity | Pulsewell | A vortex pulls effects inward, then releases a shockwave. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Spark + Resin | Ambercharge | Sticky conductive arcs jump between coated bricks. | Detection/UI only. |
+| Spark + Echo | Thunderloop | Hits repeat after a delay, creating rhythm-chain damage. | Detection/UI only. |
+| Spark + Gravity | Magnetar | Ball curves toward nearby bricks with charged gravity. | Detection/UI only. |
+| Resin + Echo | Harmonic Bloom | Resonant cracks spread outward from sticky impact points. | Detection/UI only. |
+| Resin + Gravity | Tar Pit | Creates slow gravity sludge zones that increase impact damage. | Detection/UI only. |
+| Echo + Gravity | Pulsewell | A vortex pulls effects inward, then releases a shockwave. | Detection/UI only. |
 
 ### Mystic + Mystic
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Ash + Glass | Obsidian | Creates brittle black shards that burst into piercing fragments. |
-| Ash + Mist | Smog | A decaying cloud damages hidden or shielded bricks. |
-| Ash + Iron | Rust | Weakens armored bricks and spreads corrosion. |
-| Glass + Mist | Mirage | Ball creates false copies that deal light phantom hits. |
-| Glass + Iron | Shardsteel | Ball gains razor armor, piercing through one extra brick. |
-| Mist + Iron | Mercury | Metallic liquid trails follow the ball and strike delayed targets. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Ash + Glass | Obsidian | Creates brittle black shards that burst into piercing fragments. | Detection/UI only. |
+| Ash + Mist | Smog | A decaying cloud damages hidden or shielded bricks. | Detection/UI only. |
+| Ash + Iron | Rust | Weakens armored bricks and spreads corrosion. | Detection/UI only. |
+| Glass + Mist | Mirage | Ball creates false copies that deal light phantom hits. | Detection/UI only. |
+| Glass + Iron | Shardsteel | Ball gains razor armor, piercing through one extra brick. | Detection/UI only. |
+| Mist + Iron | Mercury | Metallic liquid trails follow the ball and strike delayed targets. | Detection/UI only. |
 
 ### Fire Cross-Set Combos
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Fire + Spark | Plasma | High-speed burning arcs jump to nearby bricks. |
-| Fire + Resin | Napalm | Sticky fire clings to bricks and burns in clusters. |
-| Fire + Echo | Detonation | Each hit sends out a small explosive sound burst. |
-| Fire + Gravity | Solar Well | A burning gravity field pulls bricks and effects inward. |
-| Fire + Ash | Emberrot | Burned bricks become brittle and easier to destroy. |
-| Fire + Glass | Sunshard | Splits the ball into burning prism fragments. |
-| Fire + Mist | Scaldcloud | Steam-like haze deals soft area damage. |
-| Fire + Iron | Forge | Ball becomes molten metal, gaining heavy piercing hits. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Fire + Spark | Plasma | High-speed burning arcs jump to nearby bricks. | Detection/UI only. |
+| Fire + Resin | Napalm | Sticky fire clings to bricks and burns in clusters. | Detection/UI only. |
+| Fire + Echo | Detonation | Each hit sends out a small explosive sound burst. | Detection/UI only. |
+| Fire + Gravity | Solar Well | A burning gravity field pulls bricks and effects inward. | Detection/UI only. |
+| Fire + Ash | Emberrot | Burned bricks become brittle and easier to destroy. | Detection/UI only. |
+| Fire + Glass | Sunshard | Splits the ball into burning prism fragments. | Detection/UI only. |
+| Fire + Mist | Scaldcloud | Steam-like haze deals soft area damage. | Detection/UI only. |
+| Fire + Iron | Forge | Ball becomes molten metal, gaining heavy piercing hits. | Detection/UI only. |
 
 ### Water Cross-Set Combos
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Water + Spark | Surge | Electrified splash chains through wet bricks. |
-| Water + Resin | Sapflow | Sticky streams link bricks into damage-sharing clusters. |
-| Water + Echo | Sonar | Reveals weak points and causes rippling damage waves. |
-| Water + Gravity | Tidewell | Ball movement bends like a tide around gravity pools. |
-| Water + Ash | Lye | Cleanses buffs from enemy bricks and corrodes them. |
-| Water + Glass | Lens | Refracts the ball into angled duplicates. |
-| Water + Mist | Fog | Softens the board, allowing partial phasing through bricks. |
-| Water + Iron | Quicksilver | Ball gains fluid metallic trails that auto-target cracked bricks. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Water + Spark | Surge | Electrified splash chains through wet bricks. | Detection/UI only. |
+| Water + Resin | Sapflow | Sticky streams link bricks into damage-sharing clusters. | Detection/UI only. |
+| Water + Echo | Sonar | Reveals weak points and causes rippling damage waves. | Detection/UI only. |
+| Water + Gravity | Tidewell | Ball movement bends like a tide around gravity pools. | Detection/UI only. |
+| Water + Ash | Lye | Cleanses buffs from enemy bricks and corrodes them. | Detection/UI only. |
+| Water + Glass | Lens | Refracts the ball into angled duplicates. | Detection/UI only. |
+| Water + Mist | Fog | Softens the board, allowing partial phasing through bricks. | Detection/UI only. |
+| Water + Iron | Quicksilver | Ball gains fluid metallic trails that auto-target cracked bricks. | Detection/UI only. |
 
 ### Wind Cross-Set Combos
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Wind + Spark | Ionstorm | Charged gusts redirect the ball into chain hits. |
-| Wind + Resin | Pollenbind | Sticky spores drift across the board and attach to bricks. |
-| Wind + Echo | Resonance | Air pulses repeat impacts in widening rings. |
-| Wind + Gravity | Orbit | Ball curves around gravity pockets before snapping outward. |
-| Wind + Ash | Cinderstorm | Ash clouds sweep across rows, weakening bricks. |
-| Wind + Glass | Razorwind | Shard gusts slice through thin or cracked bricks. |
-| Wind + Mist | Vaportrail | Ball leaves a drifting trail that softly damages bricks. |
-| Wind + Iron | Maglev | Ball hovers and accelerates along magnetic wind lanes. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Wind + Spark | Ionstorm | Charged gusts redirect the ball into chain hits. | Detection/UI only. |
+| Wind + Resin | Pollenbind | Sticky spores drift across the board and attach to bricks. | Detection/UI only. |
+| Wind + Echo | Resonance | Air pulses repeat impacts in widening rings. | Detection/UI only. |
+| Wind + Gravity | Orbit | Ball curves around gravity pockets before snapping outward. | Detection/UI only. |
+| Wind + Ash | Cinderstorm | Ash clouds sweep across rows, weakening bricks. | Detection/UI only. |
+| Wind + Glass | Razorwind | Shard gusts slice through thin or cracked bricks. | Detection/UI only. |
+| Wind + Mist | Vaportrail | Ball leaves a drifting trail that softly damages bricks. | Detection/UI only. |
+| Wind + Iron | Maglev | Ball hovers and accelerates along magnetic wind lanes. | Detection/UI only. |
 
 ### Earth Cross-Set Combos
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Earth + Spark | Fulgurite | Lightning crystallizes stone, creating explosive weak points. |
-| Earth + Resin | Rootstone | Bricks bind together and share damage through root veins. |
-| Earth + Echo | Quake | Impact sends tremors through nearby bricks. |
-| Earth + Gravity | Corecrush | Heavy gravity compresses bricks for massive impact damage. |
-| Earth + Ash | Graveclay | Damaged bricks crumble into spreading decay zones. |
-| Earth + Glass | Crystal | Creates reflective crystal bricks that split shots. |
-| Earth + Mist | Marsh | Slows the ball but makes every hit splash damage. |
-| Earth + Iron | Ore | Creates armored bricks that explode when finally broken. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Earth + Spark | Fulgurite | Lightning crystallizes stone, creating explosive weak points. | Detection/UI only. |
+| Earth + Resin | Rootstone | Bricks bind together and share damage through root veins. | Detection/UI only. |
+| Earth + Echo | Quake | Impact sends tremors through nearby bricks. | Detection/UI only. |
+| Earth + Gravity | Corecrush | Heavy gravity compresses bricks for massive impact damage. | Detection/UI only. |
+| Earth + Ash | Graveclay | Damaged bricks crumble into spreading decay zones. | Detection/UI only. |
+| Earth + Glass | Crystal | Creates reflective crystal bricks that split shots. | Detection/UI only. |
+| Earth + Mist | Marsh | Slows the ball but makes every hit splash damage. | Detection/UI only. |
+| Earth + Iron | Ore | Creates armored bricks that explode when finally broken. | Detection/UI only. |
 
 ### Arcade + Mystic Cross-Set Combos
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Spark + Ash | Cindercharge | Electric decay jumps to weakened bricks. |
-| Spark + Glass | Prismbolt | Lightning splits into colored ricochet beams. |
-| Spark + Mist | Static Haze | A charged mist randomly zaps nearby bricks. |
-| Spark + Iron | Magnetron | Ball magnetizes and fires electric pulses on contact. |
-| Resin + Ash | Pitch | Sticky black tar weakens and slows bricks or effects. |
-| Resin + Glass | Amberglass | Sticky crystal coating stores damage, then shatters. |
-| Resin + Mist | Sporecloud | Sticky fog spreads status effects across the board. |
-| Resin + Iron | Ferrothorn | Metal vines bind bricks and deal thorn damage. |
-| Echo + Ash | Dirge | Sound waves decay bricks with each repeated pulse. |
-| Echo + Glass | Chime | Crystal tones create delayed shard impacts. |
-| Echo + Mist | Whisper | Invisible pulse hits appear after short delays. |
-| Echo + Iron | Resonant Steel | Metal bricks hum, storing damage before releasing it. |
-| Gravity + Ash | Blackfall | Decaying gravity wells crush weakened bricks. |
-| Gravity + Glass | Event Prism | Gravity bends shard paths into curved ricochets. |
-| Gravity + Mist | Nebula | A cosmic fog bends the ball and hides target zones. |
-| Gravity + Iron | Ironstar | Heavy magnetic gravity pulls the ball into brutal impacts. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Spark + Ash | Cindercharge | Electric decay jumps to weakened bricks. | Detection/UI only. |
+| Spark + Glass | Prismbolt | Lightning splits into colored ricochet beams. | Detection/UI only. |
+| Spark + Mist | Static Haze | A charged mist randomly zaps nearby bricks. | Detection/UI only. |
+| Spark + Iron | Magnetron | Ball magnetizes and fires electric pulses on contact. | Detection/UI only. |
+| Resin + Ash | Pitch | Sticky black tar weakens and slows bricks or effects. | Detection/UI only. |
+| Resin + Glass | Amberglass | Sticky crystal coating stores damage, then shatters. | Detection/UI only. |
+| Resin + Mist | Sporecloud | Sticky fog spreads status effects across the board. | Detection/UI only. |
+| Resin + Iron | Ferrothorn | Metal vines bind bricks and deal thorn damage. | Detection/UI only. |
+| Echo + Ash | Dirge | Sound waves decay bricks with each repeated pulse. | Detection/UI only. |
+| Echo + Glass | Chime | Crystal tones create delayed shard impacts. | Detection/UI only. |
+| Echo + Mist | Whisper | Invisible pulse hits appear after short delays. | Detection/UI only. |
+| Echo + Iron | Resonant Steel | Metal bricks hum, storing damage before releasing it. | Detection/UI only. |
+| Gravity + Ash | Blackfall | Decaying gravity wells crush weakened bricks. | Detection/UI only. |
+| Gravity + Glass | Event Prism | Gravity bends shard paths into curved ricochets. | Detection/UI only. |
+| Gravity + Mist | Nebula | A cosmic fog bends the ball and hides target zones. | Detection/UI only. |
+| Gravity + Iron | Ironstar | Heavy magnetic gravity pulls the ball into brutal impacts. | Detection/UI only. |
 
 ## Three-Type Combo Reactions
 
@@ -243,46 +254,46 @@ Three-type reactions use family-based reactions instead of listing every possibl
 
 ### Classic Triads
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Fire + Water + Wind | Monsoon Flame | A hot storm spreads burning splash damage. |
-| Fire + Water + Earth | Geyserstone | Impact erupts upward, launching damage columns. |
-| Fire + Wind + Earth | Volcanic Storm | Dust and flame sweep rows after hard impacts. |
-| Water + Wind + Earth | Tsunami Clay | Heavy waves roll across the lower board. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Fire + Water + Wind | Monsoon Flame | A hot storm spreads burning splash damage. | Detection/UI only. |
+| Fire + Water + Earth | Geyserstone | Impact erupts upward, launching damage columns. | Detection/UI only. |
+| Fire + Wind + Earth | Volcanic Storm | Dust and flame sweep rows after hard impacts. | Detection/UI only. |
+| Water + Wind + Earth | Tsunami Clay | Heavy waves roll across the lower board. | Detection/UI only. |
 
 ### Arcade Triads
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Spark + Resin + Echo | Singing Amber | Sticky trails pulse and chain damage. |
-| Spark + Resin + Gravity | Star Sap | Gravity wells trap bricks, then discharge lightning. |
-| Spark + Echo + Gravity | Storm Chorus | Orbiting echo-bolts strike after each bounce. |
-| Resin + Echo + Gravity | Deep Root | Bound bricks share damage through heavy pulses. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Spark + Resin + Echo | Singing Amber | Sticky trails pulse and chain damage. | Detection/UI only. |
+| Spark + Resin + Gravity | Star Sap | Gravity wells trap bricks, then discharge lightning. | Detection/UI only. |
+| Spark + Echo + Gravity | Storm Chorus | Orbiting echo-bolts strike after each bounce. | Detection/UI only. |
+| Resin + Echo + Gravity | Deep Root | Bound bricks share damage through heavy pulses. | Detection/UI only. |
 
 ### Mystic Triads
 
-| Combo | Result | Gameplay Effect |
-| --- | --- | --- |
-| Ash + Glass + Mist | Black Mirage | Phantom shards drift through bricks, leaving decay. |
-| Ash + Glass + Iron | Obsidian Forge | Heavy black shards pierce and corrode. |
-| Ash + Mist + Iron | Rustveil | A metallic fog corrodes armored bricks. |
-| Glass + Mist + Iron | Mercury Prism | Liquid mirror trails split and rejoin around targets. |
+| Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- |
+| Ash + Glass + Mist | Black Mirage | Phantom shards drift through bricks, leaving decay. | Detection/UI only. |
+| Ash + Glass + Iron | Obsidian Forge | Heavy black shards pierce and corrode. | Detection/UI only. |
+| Ash + Mist + Iron | Rustveil | A metallic fog corrodes armored bricks. | Detection/UI only. |
+| Glass + Mist + Iron | Mercury Prism | Liquid mirror trails split and rejoin around targets. | Detection/UI only. |
 
 ## Four-Type And Ultimate Combo Reactions
 
-| Set | Combo | Result | Gameplay Effect |
-| --- | --- | --- | --- |
-| Classic | Fire + Water + Wind + Earth | Worldheart | A full-board elemental surge: burn, splash, gust, and quake all trigger. |
-| Arcade | Spark + Resin + Echo + Gravity | Singularity Bloom | All marks collapse into one point, then explode into arcs, waves, cracks, and pull effects. |
-| Mystic | Ash + Glass + Mist + Iron | Obsidian Dawn | Dark glass fog forms, then shatters into rusting fragments across the board. |
-| All 12 | Every base element | The First Break | The board is marked, the ball splits into elemental echoes, gravity bends the arena, and a final prism shockwave clears everything below a damage threshold. |
+| Set | Combo | Result | Gameplay Effect | Current Code Behavior |
+| --- | --- | --- | --- | --- |
+| Classic | Fire + Water + Wind + Earth | Worldheart | A full-board elemental surge: burn, splash, gust, and quake all trigger. | Detection/UI only. |
+| Arcade | Spark + Resin + Echo + Gravity | Singularity Bloom | All marks collapse into one point, then explode into arcs, waves, cracks, and pull effects. | Detection/UI only. |
+| Mystic | Ash + Glass + Mist + Iron | Obsidian Dawn | Dark glass fog forms, then shatters into rusting fragments across the board. | Detection/UI only. |
+| All 12 | Every base element | The First Break | The board is marked, the ball splits into elemental echoes, gravity bends the arena, and a final prism shockwave clears everything below a damage threshold. | Detection/UI only: `activeComboId` becomes `the_first_break`; there is no board clear, echo split, gravity bend, or threshold shockwave code yet. |
 
 ## Reward Source Shape
 
 Normal brick reward blocks:
 - Drop run-scoped versions of store upgrades.
 - Do not drop elements.
-- Do not drop coins.
+- Drop 100-coin fallback bags only when no valid run-scoped upgrade remains.
 - Apply instantly through the paddle absorption animation.
 
 Boss upgrade screens:
@@ -291,7 +302,7 @@ Boss upgrade screens:
 - Award 1000 coins on boss clear for v0.26.
 - Never offer an element already owned this run.
 - Fill missing choice slots with coin rewards when fewer than three unowned elements remain.
-- Offer coin rewards only when no unowned elements remain.
+- Offer coin fallback choices only after every remaining unowned element has already been included in that screen.
 - Do not show after the level 100 boss because the run ends.
 
 Campaign note:
@@ -299,28 +310,14 @@ Campaign note:
 - Boss-only element picks may not make all 12 elements reachable yet.
 - `The First Break` remains in the catalog for testing once another path to 12 elements exists.
 
-| Upgrade | ID | Icon | Type | Effect | Run Behavior | Max Stacks |
-| --- | --- | --- | --- | --- | --- | --- |
-| Fire Attunement | `run_fire_attunement` | `F` | Element | Add Fire | Unlocks Fire for this run. Cannot appear again once owned. | 1 |
-| Water Attunement | `run_water_attunement` | `W` | Element | Add Water | Unlocks Water for this run. Cannot appear again once owned. | 1 |
-| Wind Attunement | `run_wind_attunement` | `N` | Element | Add Wind | Unlocks Wind for this run. Cannot appear again once owned. | 1 |
-| Earth Attunement | `run_earth_attunement` | `E` | Element | Add Earth | Unlocks Earth for this run. Cannot appear again once owned. | 1 |
-| Spark Attunement | `run_spark_attunement` | `K` | Element | Add Spark | Unlocks Spark for this run. Cannot appear again once owned. | 1 |
-| Resin Attunement | `run_resin_attunement` | `R` | Element | Add Resin | Unlocks Resin for this run. Cannot appear again once owned. | 1 |
-| Echo Attunement | `run_echo_attunement` | `O` | Element | Add Echo | Unlocks Echo for this run. Cannot appear again once owned. | 1 |
-| Gravity Attunement | `run_gravity_attunement` | `G` | Element | Add Gravity | Unlocks Gravity for this run. Cannot appear again once owned. | 1 |
-| Ash Attunement | `run_ash_attunement` | `A` | Element | Add Ash | Unlocks Ash for this run. Cannot appear again once owned. | 1 |
-| Glass Attunement | `run_glass_attunement` | `L` | Element | Add Glass | Unlocks Glass for this run. Cannot appear again once owned. | 1 |
-| Mist Attunement | `run_mist_attunement` | `M` | Element | Add Mist | Unlocks Mist for this run. Cannot appear again once owned. | 1 |
-| Iron Attunement | `run_iron_attunement` | `I` | Element | Add Iron | Unlocks Iron for this run. Cannot appear again once owned. | 1 |
-
 ## Current Code Note
 
-The current build does not implement this 12-element catalog yet.
+The old `run_*_attunement` draft IDs are not active in v0.26. Boss choices use the `element_*` IDs in the Boss Element Choices table.
 
-Current code still has:
-- Permanent upgrades: damage, paddle width, crit, speed, shield.
-- Run upgrades: damage, speed, paddle width, crit, multiball, Fire, Lightning, Frost, Acid, pierce, elemental amplifier, cannon, shield.
-- Current element terms: Burn, Chain, Static, Brittle, Chill, Corrosion, Pierce, and secondary-hit budget.
-
-The catalog above is the target shape before implementation.
+Current implemented element/combo scope:
+- Boss choices award run-only base elements through `elementChoice` rewards.
+- Owned elements are saved on `activeRun.ownedElements` and reset when the run ends.
+- Owned elements feed `stats.activeElements`, HUD element chips, combo matching, and primary ball visuals/damage lookup.
+- Combo data, detection, active-combo replacement, reveal queueing, save normalization, and HUD display are implemented.
+- Bespoke gameplay reactions for Water/Wind/Earth/Spark/Resin/Echo/Gravity/Ash/Glass/Mist/Iron and all named combos are not implemented yet.
+- Fire's burn data exists in `ballElements.js`, but the burn effect only runs when `burnPower > 0`; boss-picked Fire does not currently grant `burnPower`.
