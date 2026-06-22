@@ -35,6 +35,11 @@ export const BALL_ELEMENTS = {
     trailColor: "rgba(92, 190, 232, 0.68)",
     hitColor: "rgba(164, 232, 255, 0.95)",
     baseDamageMultiplier: 1,
+    splash: {
+      range: 118,
+      damageRatio: 0.35,
+      maxTargets: 2,
+    },
   },
   wind: {
     id: "wind",
@@ -44,6 +49,11 @@ export const BALL_ELEMENTS = {
     trailColor: "rgba(189, 242, 137, 0.62)",
     hitColor: "rgba(218, 255, 192, 0.95)",
     baseDamageMultiplier: 1,
+    gust: {
+      range: 300,
+      speedMultiplier: 1.04,
+      turnStrength: 0.26,
+    },
   },
   earth: {
     id: "earth",
@@ -53,6 +63,12 @@ export const BALL_ELEMENTS = {
     trailColor: "rgba(194, 151, 89, 0.62)",
     hitColor: "rgba(239, 213, 157, 0.95)",
     baseDamageMultiplier: 1.02,
+    tremor: {
+      range: 112,
+      damageRatio: 0.25,
+      maxTargets: 4,
+      bossBonusRatio: 0.18,
+    },
   },
   spark: {
     id: "spark",

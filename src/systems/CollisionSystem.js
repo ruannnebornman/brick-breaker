@@ -130,10 +130,39 @@ export class CollisionSystem {
     if (!result.pierced) {
       reflectVelocity(ball, collision.normal);
     }
+    applyMovementEffect(ball, result.movement);
     clampSpeed(ball, game.stats.ballMinSpeed, game.stats.ballMaxSpeed);
     enforceVerticalVelocity(ball);
     game.audio.play(result.destroyed ? "break" : "hit");
   }
+}
+
+function applyMovementEffect(ball, movement) {
+  if (!movement) return;
+
+  const speed = Math.hypot(ball.vx, ball.vy) || ball.speed;
+  if (speed <= 0.00001) return;
+
+  let dirX = ball.vx / speed;
+  let dirY = ball.vy / speed;
+
+  if (movement.targetPoint) {
+    const toTargetX = movement.targetPoint.x - ball.x;
+    const toTargetY = movement.targetPoint.y - ball.y;
+    const targetDistance = Math.hypot(toTargetX, toTargetY);
+    if (targetDistance > 0.00001) {
+      const strength = Math.max(0, Math.min(1, movement.turnStrength || 0));
+      dirX = dirX * (1 - strength) + (toTargetX / targetDistance) * strength;
+      dirY = dirY * (1 - strength) + (toTargetY / targetDistance) * strength;
+      const blendedLength = Math.hypot(dirX, dirY) || 1;
+      dirX /= blendedLength;
+      dirY /= blendedLength;
+    }
+  }
+
+  const boostedSpeed = speed * (movement.speedMultiplier || 1);
+  ball.vx = dirX * boostedSpeed;
+  ball.vy = dirY * boostedSpeed;
 }
 
 function stableTargetKey(target) {

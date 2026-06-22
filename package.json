@@ -1,4 +1,5 @@
 {
+  "name": "paddle-pets",
   "type": "module",
   "scripts": {
     "playtest:headed": "node tools/playtest-headed.mjs"

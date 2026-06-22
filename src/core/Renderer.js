@@ -143,13 +143,27 @@ export class Renderer {
   drawPaddle(ctx, paddle) {
     const image = this.assets.get("paddle_basic");
     if (image) {
-      ctx.drawImage(
-        image,
-        paddle.x - paddle.width / 2,
-        paddle.y - paddle.height / 2,
-        paddle.width,
-        paddle.height,
-      );
+      const meta = this.assets.getMeta("paddle_basic");
+      if (meta?.fallback?.kind === "paddlePet") {
+        const aspect = (meta.width || image.naturalWidth || paddle.width) / (meta.height || image.naturalHeight || paddle.height);
+        const visualHeight = Math.min(68, Math.max(paddle.height * 2.8, paddle.width / aspect));
+        const visualWidth = visualHeight * aspect;
+        ctx.drawImage(
+          image,
+          paddle.x - visualWidth / 2,
+          paddle.y - visualHeight + paddle.height * 0.65,
+          visualWidth,
+          visualHeight,
+        );
+      } else {
+        ctx.drawImage(
+          image,
+          paddle.x - paddle.width / 2,
+          paddle.y - paddle.height / 2,
+          paddle.width,
+          paddle.height,
+        );
+      }
       return;
     }
     this.drawPlaceholderPaddle(ctx, paddle.x, paddle.y, paddle.width, paddle.height);

@@ -1,16 +1,18 @@
 import { BIOMES } from "../data/biomes.js";
 import { getBallElement } from "../data/ballElements.js";
-import { getOwnedBaseElements } from "../data/baseElements.js";
+import { BASE_ELEMENTS, getOwnedBaseElements } from "../data/baseElements.js";
 import { getElementCombo } from "../data/elementCombos.js";
-import { getPermanentUpgradeDisplay, PERMANENT_UPGRADES } from "../data/permanentUpgrades.js";
 
 export class HUD {
   constructor(root) {
     this.root = root;
     this.last = "";
+    this.game = null;
+    this.root.addEventListener("click", (event) => this.handleClick(event));
   }
 
   update(game) {
+    this.game = game;
     if (!["playing", "paused"].includes(game.mode)) {
       if (this.last !== "") {
         this.root.innerHTML = "";
@@ -56,6 +58,29 @@ export class HUD {
       this.last = html;
     }
   }
+
+  handleClick(event) {
+    const elementButton = event.target.closest("[data-element-test]");
+    if (elementButton && this.root.contains(elementButton)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!this.game) return;
+      this.game.enableTestElement(elementButton.dataset.elementTest);
+      this.last = "";
+      this.update(this.game);
+      return;
+    }
+
+    const clearButton = event.target.closest("[data-element-clear]");
+    if (clearButton && this.root.contains(clearButton)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!this.game) return;
+      this.game.clearTestElements();
+      this.last = "";
+      this.update(this.game);
+    }
+  }
 }
 
 function renderHearts(lives, isHit) {
@@ -95,17 +120,44 @@ function renderCannonIndicator(game) {
 }
 
 function renderRewardRails(game) {
-  const permanentItems = getPermanentItems(game);
   return `
     <div class="reward-rails" aria-label="Reward state">
-      <aside class="reward-rail reward-rail--permanent" aria-label="Permanent upgrades">
-        <strong>Permanent</strong>
-        ${renderRailItems(permanentItems, "No cores")}
+      <aside class="reward-rail reward-rail--element-tester" aria-label="Element test controls">
+        ${renderElementTester(game)}
       </aside>
       <aside class="reward-rail reward-rail--elements" aria-label="Elements and active combo">
         ${renderElementPanel(game)}
       </aside>
     </div>
+  `;
+}
+
+function renderElementTester(game) {
+  const owned = new Set(game.activeRun?.ownedElements || []);
+  return `
+    <div class="element-test-heading">
+      <strong>Test Elements</strong>
+      <button class="element-test-clear" type="button" data-element-clear>Clear</button>
+    </div>
+    <div class="element-test-grid">
+      ${BASE_ELEMENTS.map((element) => renderElementButton(element, owned.has(element.id))).join("")}
+    </div>
+  `;
+}
+
+function renderElementButton(element, active) {
+  const ballElement = getBallElement(element.ballElementId);
+  return `
+    <button
+      class="element-test-button ${active ? "element-test-button--active" : ""}"
+      type="button"
+      data-element-test="${element.id}"
+      aria-pressed="${active ? "true" : "false"}"
+      style="--element-color: ${ballElement.glowColor}; --element-fill: ${ballElement.trailColor}"
+    >
+      <b>${element.icon}</b>
+      <span>${element.name}</span>
+    </button>
   `;
 }
 
@@ -146,38 +198,6 @@ function renderElementChip(element) {
       <span>${element.name}</span>
     </span>
   `;
-}
-
-function renderRailItems(items, emptyLabel) {
-  if (!items.length) {
-    return `<span class="reward-rail-empty">${emptyLabel}</span>`;
-  }
-  return items.slice(0, 7).map((item) => `
-    <span class="reward-rail-item">
-      <b>${item.prefix}</b>
-      <span>${item.label}</span>
-      <em>${item.value}</em>
-    </span>
-  `).join("");
-}
-
-function getPermanentItems(game) {
-  const counts = { ...(game.profile?.permanentUpgrades || {}) };
-  for (const permanentId of game.level?.stagedRewards?.permanentUpgrades || []) {
-    counts[permanentId] = (counts[permanentId] || 0) + 1;
-  }
-  const order = new Map(PERMANENT_UPGRADES.map((upgrade, index) => [upgrade.id, index]));
-  return Object.entries(counts)
-    .filter(([, count]) => count > 0)
-    .sort(([a], [b]) => (order.get(a) ?? 99) - (order.get(b) ?? 99) || a.localeCompare(b))
-    .map(([id, count]) => {
-      const upgrade = getPermanentUpgradeDisplay(id);
-      return {
-        prefix: "P",
-        label: upgrade.shortLabel,
-        value: `x${count}`,
-      };
-    });
 }
 
 function getElementLabel(stats) {

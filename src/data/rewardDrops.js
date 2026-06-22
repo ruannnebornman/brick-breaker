@@ -9,6 +9,7 @@ import {
 
 export const BOSS_COIN_REWARD = 1000;
 export const EXHAUSTED_RUN_REWARD_COIN_BAG_VALUE = BOSS_COIN_REWARD * 0.1;
+export const RUN_POWERUP_DROPS_ENABLED = false;
 
 export function getPermanentRewardChance(levelNumber) {
   const level = Math.max(1, Number(levelNumber) || 1);
@@ -32,6 +33,7 @@ export function createRewardForLevelSlot(levelNumber, slot, seed = 1, options = 
 }
 
 export function getRewardBlockCount(levelNumber, { isBossLevel = false } = {}) {
+  if (!RUN_POWERUP_DROPS_ENABLED) return 0;
   // The replacement block is for normal stages; boss reward volume changes with boss-choice flow later.
   if (isBossLevel) return 2;
   const baseCount = levelNumber === 7 || (levelNumber >= 14 && levelNumber % 7 === 0) ? 2 : 1;

@@ -8,10 +8,14 @@ export class ElementSystem {
     const elementMultiplier = this.getElementDamageMultiplier(target, element.id);
     const rawDamage = hitEvent.baseDamage * element.baseDamageMultiplier * elementMultiplier * (crit ? hitEvent.critDamage : 1);
     const finalDamage = this.calculateDamage(target, rawDamage, game, { consumeBrittle: true });
+    const movementEffects = [];
 
     this.applyDamage(target, finalDamage, game);
     for (const activeElement of activeElements) {
-      this.applyElementEffect(activeElement, target, hitEvent, finalDamage, game);
+      const effect = this.applyElementEffect(activeElement, target, hitEvent, finalDamage, game);
+      if (effect?.movement) {
+        movementEffects.push(effect.movement);
+      }
     }
 
     return {
@@ -20,6 +24,7 @@ export class ElementSystem {
       destroyed: !target.active,
       pierced: this.shouldPierce(activeElements, target, hitEvent, game),
       hitColor: element.hitColor,
+      movement: combineMovementEffects(movementEffects),
     };
   }
 
@@ -69,28 +74,50 @@ export class ElementSystem {
   }
 
   applyElementEffect(element, target, hitEvent, finalDamage, game) {
-    if (!target.active) return;
-    if (element.id !== "normal" && !this.rollElementProc(game)) return;
+    if (element.id === "normal") return null;
+    if (element.id !== "normal" && !this.rollElementProc(game)) return null;
 
-    if (element.id === "fire" && game.stats.burnPower > 0) {
-      this.applyBurn(element, target, hitEvent, game);
-      return;
+    if (element.id === "fire") {
+      if (target.active) {
+        this.applyBurn(element, target, hitEvent, game);
+      }
+      return null;
     }
+
+    if (element.id === "water") {
+      this.applyWaterSplash(element, target, finalDamage, game);
+      return null;
+    }
+
+    if (element.id === "wind") {
+      return {
+        movement: this.createWindMovementEffect(element, hitEvent, game),
+      };
+    }
+
+    if (element.id === "earth") {
+      this.applyEarthTremor(element, target, finalDamage, game);
+      return null;
+    }
+
+    if (!target.active) return null;
 
     if (element.id === "lightning" && game.stats.lightningPower > 0) {
       this.applyStatic(element, target, hitEvent, game);
       this.applyLightningChain(element, target, hitEvent, finalDamage, game);
-      return;
+      return null;
     }
 
     if (element.id === "frost" && game.stats.frostPower > 0) {
       this.applyFrost(element, target, hitEvent, game);
-      return;
+      return null;
     }
 
     if (element.id === "acid" && game.stats.acidPower > 0) {
       this.applyCorrosion(element, target, hitEvent, game);
     }
+
+    return null;
   }
 
   rollElementProc(game) {
@@ -99,9 +126,11 @@ export class ElementSystem {
 
   applyBurn(element, target, hitEvent, game) {
     const burn = element.burn;
-    const duration = (burn.duration + game.stats.burnPower * burn.durationPerPower) * game.stats.statusDuration;
+    const burnPower = game.stats.burnPower || 0;
+    const statusDuration = game.stats.statusDuration || 1;
+    const duration = (burn.duration + burnPower * burn.durationPerPower) * statusDuration;
     const bossMultiplier = target.kind === "boss" ? burn.bossPotencyMultiplier : 1;
-    const potency = (hitEvent.baseDamage * burn.damageRatio + game.stats.burnPower * burn.damagePerPower) * bossMultiplier;
+    const potency = (hitEvent.baseDamage * burn.damageRatio + burnPower * burn.damagePerPower) * bossMultiplier;
     const maxStacks = target.kind === "boss" ? Math.min(burn.maxStacks, burn.bossMaxStacks) : burn.maxStacks;
 
     this.applyStatus(target, {
@@ -113,6 +142,86 @@ export class ElementSystem {
       maxStacks,
       metadata: {},
     });
+  }
+
+  applyWaterSplash(element, sourceTarget, finalDamage, game) {
+    const splash = element.splash;
+    if (!splash) return;
+
+    const source = centerOf(sourceTarget);
+    const targets = this.findTargetsInRange(source, {
+      game,
+      range: splash.range,
+      exclude: new Set([stableTargetKey(sourceTarget)]),
+      maxTargets: splash.maxTargets,
+    });
+
+    for (const target of targets) {
+      if (!this.consumeSecondaryEvent(game)) return;
+      const damage = this.calculateDamage(target, finalDamage * splash.damageRatio, game);
+      const wasActive = target.active;
+      this.applyDamage(target, damage, game);
+      const to = centerOf(target);
+      game.particleSystem.chain(game.level, source.x, source.y, to.x, to.y, element.hitColor);
+      game.particleSystem.hit(game.level, to.x, to.y, element.hitColor);
+      if (wasActive && !target.active) {
+        game.particleSystem.burst(game.level, to.x, to.y, element.hitColor);
+      }
+    }
+  }
+
+  createWindMovementEffect(element, hitEvent, game) {
+    const gust = element.gust;
+    if (!gust) return null;
+
+    const origin = hitEvent.position || { x: 0, y: 0 };
+    const target = this.findNearestTarget(origin, {
+      game,
+      range: gust.range,
+      exclude: new Set([`${hitEvent.targetKind}:${hitEvent.targetId}`]),
+    });
+
+    return {
+      kind: "wind",
+      targetPoint: target ? centerOf(target) : null,
+      speedMultiplier: gust.speedMultiplier,
+      turnStrength: gust.turnStrength,
+    };
+  }
+
+  applyEarthTremor(element, sourceTarget, finalDamage, game) {
+    const tremor = element.tremor;
+    if (!tremor) return;
+
+    const source = centerOf(sourceTarget);
+    if (sourceTarget.kind === "boss") {
+      if (!sourceTarget.active || !this.consumeSecondaryEvent(game)) return;
+      const damage = this.calculateDamage(sourceTarget, finalDamage * tremor.bossBonusRatio, game);
+      this.applyDamage(sourceTarget, damage, game);
+      game.particleSystem.burst(game.level, source.x, source.y, element.hitColor);
+      return;
+    }
+
+    const targets = this.findTargetsInRange(source, {
+      game,
+      range: tremor.range,
+      exclude: new Set([stableTargetKey(sourceTarget)]),
+      includeBoss: false,
+      maxTargets: tremor.maxTargets,
+    });
+
+    for (const target of targets) {
+      if (!this.consumeSecondaryEvent(game)) return;
+      const damage = this.calculateDamage(target, finalDamage * tremor.damageRatio, game);
+      const wasActive = target.active;
+      this.applyDamage(target, damage, game);
+      const to = centerOf(target);
+      game.particleSystem.chain(game.level, source.x, source.y, to.x, to.y, element.hitColor);
+      game.particleSystem.hit(game.level, to.x, to.y, element.hitColor);
+      if (wasActive && !target.active) {
+        game.particleSystem.burst(game.level, to.x, to.y, element.hitColor);
+      }
+    }
   }
 
   applyStatic(element, target, hitEvent, game) {
@@ -241,22 +350,50 @@ export class ElementSystem {
 
   findNearestChainTarget(sourceTarget, visited, range, game) {
     const source = centerOf(sourceTarget);
+    const candidates = this.findTargetsInRange(source, {
+      game,
+      range,
+      exclude: visited,
+    });
+
+    return candidates[0] || null;
+  }
+
+  findNearestTarget(source, { game, range, exclude = new Set(), includeBoss = true } = {}) {
+    return this.findTargetsInRange(source, {
+      game,
+      range,
+      exclude,
+      includeBoss,
+      maxTargets: 1,
+    })[0] || null;
+  }
+
+  findTargetsInRange(source, {
+    game,
+    range,
+    exclude = new Set(),
+    includeBoss = true,
+    maxTargets = Infinity,
+  } = {}) {
     const candidates = [
       ...game.level.bricks,
       ...game.level.enemies,
-      ...(game.level.boss ? [game.level.boss] : []),
-    ].filter((target) => target.active && !visited.has(stableTargetKey(target)));
+      ...(includeBoss && game.level.boss ? [game.level.boss] : []),
+    ].filter((target) => target.active && !exclude.has(stableTargetKey(target)));
 
-    let best = null;
+    const matches = [];
     for (const target of candidates) {
       const targetCenter = centerOf(target);
       const distance = Math.hypot(targetCenter.x - source.x, targetCenter.y - source.y);
       if (distance > range) continue;
-      if (!best || distance < best.distance || (distance === best.distance && target.id < best.target.id)) {
-        best = { target, distance };
-      }
+      matches.push({ target, distance });
     }
-    return best?.target || null;
+
+    return matches
+      .sort((a, b) => a.distance - b.distance || stableTargetKey(a.target).localeCompare(stableTargetKey(b.target)))
+      .slice(0, maxTargets)
+      .map((match) => match.target);
   }
 
   shouldPierce(elements, target, hitEvent, game) {
@@ -324,4 +461,11 @@ function centerOf(entity) {
 
 function stableTargetKey(target) {
   return `${target.kind}:${target.id}`;
+}
+
+function combineMovementEffects(effects) {
+  if (effects.length === 0) return null;
+  const wind = effects.find((effect) => effect.kind === "wind");
+  if (!wind) return null;
+  return wind;
 }

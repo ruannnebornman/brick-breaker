@@ -41,8 +41,8 @@ export class ScreenManager {
     const run = game.activeRun;
     this.root.innerHTML = `
       <section class="overlay-panel" role="dialog" aria-labelledby="menuTitle">
-        <h1 id="menuTitle">Elemental Barrage</h1>
-        <p class="panel-subtitle">Grasslands chapter prototype · ${CAMPAIGN_MAX_LEVEL} levels</p>
+        <h1 id="menuTitle">Paddle Pets</h1>
+        <p class="panel-subtitle">Everything is a paddle · ${CAMPAIGN_MAX_LEVEL} levels</p>
         <div class="save-summary">
           <span>Highest level: ${game.profile.highestLevelUnlocked}</span>
           <span>Permanent upgrades: ${countPermanentCores(game.profile.permanentUpgrades)}</span>

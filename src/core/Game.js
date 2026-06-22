@@ -663,6 +663,28 @@ export class Game {
     return true;
   }
 
+  enableTestElement(elementId) {
+    if (!this.activeRun || !getBaseElement(elementId)) return false;
+    const added = this.addRunElement(elementId);
+    this.updateRunCombo({ reveal: false });
+    this.applyCurrentLevelStats();
+    this.persist();
+    return added;
+  }
+
+  clearTestElements() {
+    if (!this.activeRun) return false;
+    const hadElements = (this.activeRun.ownedElements || []).length > 0;
+    this.activeRun.ownedElements = [];
+    this.activeRun.activeComboId = null;
+    this.activeRun.discoveredComboIds = [];
+    this.comboReveal = null;
+    this.comboRevealQueue = [];
+    this.applyCurrentLevelStats();
+    this.persist();
+    return hadElements;
+  }
+
   updateRunCombo({ reveal = false } = {}) {
     if (!this.activeRun) return null;
     this.activeRun.ownedElements = this.activeRun.ownedElements || [];

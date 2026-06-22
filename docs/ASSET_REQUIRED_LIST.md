@@ -1,6 +1,6 @@
 # Asset Required List
 
-This is the image generation checklist for **Brick Breaker: Elemental Barrage**.
+This is the image generation checklist for **Paddle Pets**.
 It is organized so the first playable demo can be generated first, then expanded into the full 100-level game.
 
 ## Generation Rules
@@ -9,7 +9,7 @@ It is organized so the first playable demo can be generated first, then expanded
 - Use 16:10 backgrounds that can crop safely into the 960 x 600 logical arena. Generate at 1920 x 1200 where possible.
 - Keep gameplay readability first: strong silhouettes, clear hitboxes, low background noise, no tiny decorative clutter.
 - Do not put readable text inside generated images. UI labels should be rendered by HTML/CSS.
-- Use a consistent arcade fantasy style across all assets: crisp painted shapes, high contrast, readable at small sizes.
+- Use a consistent Paddle Pets arcade fantasy style across all assets: crisp painted shapes, high contrast, rounded paddle silhouettes, glossy bevels, and readable small-scale forms.
 - Prefer centered sprites with padding so Canvas rotation, glow, and scale effects do not clip.
 - Generate damaged brick states only when they communicate HP clearly. Otherwise use code-driven tinting and cracks.
 
