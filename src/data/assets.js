@@ -51,6 +51,15 @@ export const ASSETS = [
     fallback: { kind: "paddlePet", petId: "unicorn", fill: "#f6f1ff", accent: "#ff5bd8", trim: "#ffc95a" },
   },
   {
+    id: "paddle_pet_unicorn_idle",
+    path: "./assets/images/paddle-pets/pets/paddle_pet_unicorn_idle_sheet.png",
+    width: 1024,
+    height: 414,
+    anchor: { x: 0.5, y: 0.5 },
+    animation: { frames: 12, columns: 4, frameWidth: 1024, frameHeight: 414, fps: 12 },
+    fallback: { kind: "paddlePet", petId: "unicorn", fill: "#f6f1ff", accent: "#ff5bd8", trim: "#ffc95a" },
+  },
+  {
     id: "paddle_pet_dragon",
     path: "./assets/images/paddle-pets/pets/paddle_pet_dragon.png",
     width: 1024,

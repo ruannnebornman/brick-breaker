@@ -106,7 +106,7 @@ export class Renderer {
       const y = 138 + Math.sin(t * 1.4 + i) * 9;
       this.drawPlaceholderBrick(ctx, x, y, 68, 28, i % 3 === 0 ? "armored" : "basic", 1);
     }
-    this.drawPlaceholderPaddle(ctx, 480, 520, 150, 18);
+    this.drawPaddle(ctx, { x: 480, y: 520, width: 150, height: 18 }, t);
     this.drawPlaceholderBall(ctx, 480 + Math.cos(t * 2.4) * 130, 365 + Math.sin(t * 1.8) * 55, 9, "normal");
     ctx.restore();
   }
@@ -139,30 +139,34 @@ export class Renderer {
       this.drawBall(ctx, ball);
     }
 
-    this.drawPaddle(ctx, level.paddle);
+    this.drawPaddle(ctx, level.paddle, game.elapsed);
     this.drawParticles(ctx, level.particles, "spark");
     this.drawParticles(ctx, level.particles, "chip");
     this.drawFloatingTexts(ctx, level.floatingTexts);
   }
 
-  drawPaddle(ctx, paddle) {
-    const image = this.assets.get("paddle_basic");
+  drawPaddle(ctx, paddle, time = 0) {
+    const animatedImage = this.assets.get("paddle_pet_unicorn_idle");
+    const image = animatedImage || this.assets.get("paddle_basic");
     if (image) {
-      const meta = this.assets.getMeta("paddle_basic");
+      const meta = this.assets.getMeta(animatedImage ? "paddle_pet_unicorn_idle" : "paddle_basic");
       if (meta?.fallback?.kind === "paddlePet") {
-        const aspect = (meta.width || image.naturalWidth || paddle.width) / (meta.height || image.naturalHeight || paddle.height);
+        const frame = this.getAnimationFrame(meta, time);
+        const sourceWidth = frame?.width || meta.width || image.naturalWidth || paddle.width;
+        const sourceHeight = frame?.height || meta.height || image.naturalHeight || paddle.height;
+        const aspect = sourceWidth / sourceHeight;
         const visualHeight = Math.min(68, Math.max(paddle.height * 2.8, paddle.width / aspect));
         const visualWidth = visualHeight * aspect;
+        const x = paddle.x - visualWidth / 2;
+        const y = paddle.y - visualHeight + paddle.height * 0.65;
         ctx.save();
         ctx.globalAlpha = 0.94;
         ctx.filter = "blur(0.28px) saturate(0.92) contrast(0.9) brightness(0.97)";
-        ctx.drawImage(
-          image,
-          paddle.x - visualWidth / 2,
-          paddle.y - visualHeight + paddle.height * 0.65,
-          visualWidth,
-          visualHeight,
-        );
+        if (frame) {
+          ctx.drawImage(image, frame.x, frame.y, frame.width, frame.height, x, y, visualWidth, visualHeight);
+        } else {
+          ctx.drawImage(image, x, y, visualWidth, visualHeight);
+        }
         ctx.restore();
       } else {
         ctx.drawImage(
@@ -176,6 +180,23 @@ export class Renderer {
       return;
     }
     this.drawPlaceholderPaddle(ctx, paddle.x, paddle.y, paddle.width, paddle.height);
+  }
+
+  getAnimationFrame(meta, time) {
+    const animation = meta?.animation;
+    if (!animation?.frames) return null;
+    const frameCount = Math.max(1, animation.frames);
+    const fps = animation.fps || 12;
+    const frameIndex = Math.floor(time * fps) % frameCount;
+    const columns = animation.columns || frameCount;
+    const width = animation.frameWidth || meta.width;
+    const height = animation.frameHeight || meta.height;
+    return {
+      x: (frameIndex % columns) * width,
+      y: Math.floor(frameIndex / columns) * height,
+      width,
+      height,
+    };
   }
 
   drawBall(ctx, ball) {
