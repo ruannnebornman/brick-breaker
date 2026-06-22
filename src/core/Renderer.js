@@ -84,12 +84,17 @@ export class Renderer {
       return;
     }
 
-    ctx.strokeStyle = "rgba(230, 193, 91, 0.45)";
-    ctx.lineWidth = 5;
-    ctx.strokeRect(10, 10, LOGICAL_WIDTH - 20, LOGICAL_HEIGHT - 20);
-    ctx.strokeStyle = "rgba(97, 215, 198, 0.22)";
+    ctx.save();
+    ctx.shadowColor = "rgba(83, 217, 255, 0.18)";
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = "rgba(255, 201, 90, 0.18)";
     ctx.lineWidth = 2;
+    ctx.strokeRect(11, 11, LOGICAL_WIDTH - 22, LOGICAL_HEIGHT - 22);
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(83, 217, 255, 0.12)";
+    ctx.lineWidth = 1;
     ctx.strokeRect(20, 20, LOGICAL_WIDTH - 40, LOGICAL_HEIGHT - 40);
+    ctx.restore();
   }
 
   drawAttractScene(ctx, game) {
