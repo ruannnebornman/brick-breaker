@@ -23,9 +23,7 @@ body {
   width: 100%;
   min-height: 100%;
   margin: 0;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(97, 215, 198, 0.18), transparent 28rem),
-    linear-gradient(135deg, #07100e 0%, #162d23 45%, #2e351a 100%);
+  background: #140b35;
   color: var(--text);
   overflow: hidden;
 }
@@ -62,18 +60,37 @@ button:disabled {
 }
 
 .game-shell {
+  --shell-gap: clamp(0.35rem, 1vw, 0.75rem);
   position: relative;
   display: grid;
   place-items: center;
   width: 100vw;
   height: 100vh;
-  padding: clamp(0.5rem, 2vw, 1.5rem);
+  padding: var(--shell-gap);
+  overflow: hidden;
+}
+
+.game-shell::before {
+  content: "";
+  position: absolute;
+  inset: -1.5rem;
+  z-index: 0;
+  background:
+    linear-gradient(rgba(8, 12, 22, 0.44), rgba(8, 12, 22, 0.54)),
+    url("./assets/images/paddle-pets/backgrounds/bg_paddle_pets_castle_arena.png") center / cover no-repeat;
+  filter: blur(10px) saturate(0.9) brightness(0.72);
+  transform: scale(1.04);
+  pointer-events: none;
 }
 
 .arena-shell {
   position: relative;
-  width: min(100%, calc((100vh - 2rem) * 1.6));
-  max-width: 1200px;
+  z-index: 1;
+  width: min(
+    calc(100vw - var(--shell-gap) - var(--shell-gap)),
+    calc((100vh - var(--shell-gap) - var(--shell-gap)) * 1.6)
+  );
+  max-width: none;
   aspect-ratio: 16 / 10;
   border: 1px solid rgba(221, 244, 200, 0.18);
   border-radius: 8px;
@@ -534,6 +551,7 @@ button:disabled {
 .ui-root {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: grid;
   place-items: center;
   pointer-events: none;

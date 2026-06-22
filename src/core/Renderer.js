@@ -148,6 +148,9 @@ export class Renderer {
         const aspect = (meta.width || image.naturalWidth || paddle.width) / (meta.height || image.naturalHeight || paddle.height);
         const visualHeight = Math.min(68, Math.max(paddle.height * 2.8, paddle.width / aspect));
         const visualWidth = visualHeight * aspect;
+        ctx.save();
+        ctx.globalAlpha = 0.94;
+        ctx.filter = "blur(0.28px) saturate(0.92) contrast(0.9) brightness(0.97)";
         ctx.drawImage(
           image,
           paddle.x - visualWidth / 2,
@@ -155,6 +158,7 @@ export class Renderer {
           visualWidth,
           visualHeight,
         );
+        ctx.restore();
       } else {
         ctx.drawImage(
           image,
